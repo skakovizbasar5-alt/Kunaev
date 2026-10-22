@@ -1,0 +1,1847 @@
+<!doctype html>
+<html lang="kk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Қонаев 3D музейі</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:wght@400;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+<style>
+/* Layout: a full-screen walkable 3D museum; HUD floats on top; every overlay is a "museum label" sheet in walnut, green cloth and brass */
+:root{
+  --bg:#0d1310; --panel:#131c18; --panel2:#1a2621; --line:#2d3f37; --scrim:rgba(7,11,9,.74);
+  --cloth:#1d4a3c; --brass:#c9a45c; --brass2:#e6cd94; --cream:#efe6d2; --muted:#9fb2a8; --walnut:#5b3520;
+  --paper:#f3ebd9; --ink:#2b2620; --ink2:#6a5f50; --danger:#d06a5a;
+  --serif:"PT Serif", Georgia, "Times New Roman", serif;
+  --sans:"PT Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{background:var(--bg);color:var(--cream);font-family:var(--sans);font-size:15px;overflow:hidden;-webkit-tap-highlight-color:transparent}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+button{font:inherit;color:inherit}
+.btn{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);color:var(--cream);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:14px;line-height:1.1;white-space:nowrap}
+.btn:hover{border-color:var(--brass)}
+.btn:focus-visible,.chip:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--brass2);outline-offset:2px}
+.btn.primary{background:var(--brass);color:#1b1408;border-color:var(--brass);font-weight:700}
+.btn.primary:hover{background:var(--brass2)}
+.btn.ghost{background:transparent}
+.btn[disabled]{opacity:.5;cursor:default}
+
+/* HUD */
+.hud-top{position:fixed;top:0;left:0;right:0;z-index:5;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));pointer-events:none}
+.room-tag{pointer-events:auto;display:flex;gap:10px;align-items:center;background:var(--scrim);border:1px solid var(--line);padding:7px 12px 7px 8px;border-radius:8px;min-width:0;max-width:62vw;cursor:pointer}
+.room-tag .num{flex:none;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--brass);display:grid;place-items:center;font-family:var(--serif);font-weight:700;color:var(--brass2);font-size:16px}
+.room-tag .nm{font-family:var(--serif);font-weight:700;font-size:15px;line-height:1.15}
+.room-tag .sb{color:var(--muted);font-size:12px;margin-top:2px}
+.room-tag .tx{min-width:0}
+.tools{pointer-events:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;max-width:52vw}
+.tools .btn{background:var(--scrim)}
+.hint{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:4;background:var(--scrim);border:1px solid var(--line);color:var(--muted);font-size:12.5px;padding:7px 12px;border-radius:20px;max-width:calc(100vw - 32px);text-align:center;pointer-events:none;transition:opacity .6s}
+.hint.top{top:calc(84px + env(safe-area-inset-top,0px));bottom:auto}
+.pad{position:fixed;z-index:5;bottom:calc(52px + env(safe-area-inset-bottom,0px));left:max(16px,env(safe-area-inset-left,0px));display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:6px}
+.pad button{background:var(--scrim);border:1px solid var(--line);border-radius:10px;font-size:18px;color:var(--brass2);touch-action:none;user-select:none;-webkit-user-select:none}
+.pad .u{grid-column:2;grid-row:1}.pad .l{grid-column:1;grid-row:2}.pad .d{grid-column:2;grid-row:2}.pad .r{grid-column:3;grid-row:2}
+#tip{position:fixed;z-index:6;pointer-events:none;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:13px;padding:5px 9px;border-radius:4px;box-shadow:0 4px 14px rgba(0,0,0,.4);transform:translate(12px,12px);max-width:260px}
+#fade{position:fixed;inset:0;background:#000;z-index:20;opacity:0;pointer-events:none;transition:opacity .35s}
+#loading{position:fixed;inset:0;z-index:30;display:grid;place-items:center;background:var(--bg);color:var(--muted);font-family:var(--serif)}
+
+/* Intro */
+#intro{position:fixed;inset:0;z-index:15;overflow:auto;background:var(--bg)}
+.intro-bg{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.22;filter:saturate(.7)}
+.intro-in{position:relative;min-height:100%;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:40px;align-items:center;max-width:1100px;margin:0 auto;
+  padding-block:calc(40px + env(safe-area-inset-top,0px)) 40px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.kicker{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--brass);font-weight:700}
+.intro h1{font-family:var(--serif);font-weight:700;font-size:clamp(30px,5.2vw,58px);line-height:1.04;margin:12px 0 14px;text-wrap:balance}
+.intro h1 em{font-style:italic;font-weight:400;color:var(--brass2)}
+.intro .subt{font-family:var(--serif);font-style:italic;font-size:clamp(18px,2.4vw,24px);color:var(--brass2);margin:-6px 0 16px}
+.intro .lead{color:var(--muted);font-size:16px;line-height:1.55;max-width:58ch}
+.goals{list-style:none;padding:0;margin:22px 0 26px;display:grid;gap:10px;max-width:56ch}
+.goals li{display:grid;grid-template-columns:22px 1fr;gap:10px;line-height:1.45}
+.goals li::before{content:"";width:9px;height:9px;margin-top:6px;border:1.5px solid var(--brass);transform:rotate(45deg)}
+.intro .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.intro .row .btn{padding:12px 18px;font-size:15px}
+.portrait-card{justify-self:center;width:min(100%,330px);background:var(--panel);border:1px solid var(--line);padding:14px;border-radius:4px;box-shadow:0 30px 60px rgba(0,0,0,.45)}
+.portrait-card img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;border:6px solid #8a6a32}
+.portrait-card .cap{font-family:var(--serif);text-align:center;margin-top:10px}
+.portrait-card .cap b{display:block;font-size:18px}
+.portrait-card .cap span{color:var(--muted);font-size:13px}
+.credits{color:var(--muted);font-size:12px;margin-top:22px;max-width:60ch;line-height:1.5}
+
+/* Sheets */
+.sheet{position:fixed;inset:0;z-index:10;background:var(--scrim);display:grid;justify-items:center;align-items:safe center;overflow:auto;
+  padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(14px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.card{position:relative;width:min(100%,820px);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 30px 80px rgba(0,0,0,.55);overflow:hidden}
+.card-h{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.card-h h2{font-family:var(--serif);font-size:20px;margin:2px 0 0;line-height:1.2;text-wrap:balance}
+.card-b{padding:16px}
+.x{flex:none;width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-size:18px;line-height:1}
+.x:hover{border-color:var(--brass)}
+.info-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;align-items:start}
+.info-grid.noimg{grid-template-columns:1fr}
+.info-img{width:100%;border-radius:4px;border:1px solid var(--line);display:block}
+.info-text{font-size:16px;line-height:1.6;min-width:0}
+.info-text p{margin:0 0 10px}
+.credit{font-size:12px;color:var(--muted)}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* Book */
+.stage{position:relative;height:min(58vh,520px);perspective:2200px;display:grid;place-items:center;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;overflow:hidden;background:radial-gradient(ellipse at 50% 60%,#26352e 0%,var(--panel) 70%)}
+.book{position:relative;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.3,.1,.2,1)}
+.leaf{position:absolute;left:50%;top:0;width:50%;height:100%;transform-origin:left center;transform-style:preserve-3d;transition:transform .9s cubic-bezier(.35,.1,.2,1)}
+.leaf.turned{transform:rotateY(-180deg)}
+.face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;overflow:hidden;background:var(--paper);color:var(--ink);padding:1.4em 1.3em;font-family:var(--serif);font-size:1em;line-height:1.45;box-shadow:inset 10px 0 18px -12px rgba(0,0,0,.35)}
+.face.back{transform:rotateY(180deg);box-shadow:inset -10px 0 18px -12px rgba(0,0,0,.35)}
+.face h3{font-size:1.25em;margin:0 0 .6em;line-height:1.15}
+.face p{margin:0 0 .6em}
+.face ul{margin:0;padding-left:1.1em}
+.face li{margin-bottom:.35em}
+.face .pn{position:absolute;bottom:.7em;left:0;right:0;text-align:center;font-size:.7em;color:var(--ink2)}
+.face img{width:100%;height:72%;object-fit:cover;border:1px solid #cdbf9f;display:block}
+.face .cap{font-size:.82em;color:var(--ink2);margin-top:.5em;font-style:italic}
+.face.cover{color:var(--brass2);display:flex;flex-direction:column;justify-content:space-between;text-align:center;padding:2em 1.4em;box-shadow:inset 6px 0 10px rgba(0,0,0,.4)}
+.face.cover .frame{position:absolute;inset:.8em;border:2px solid currentColor;opacity:.6;pointer-events:none}
+.face.cover .au{font-size:.95em;letter-spacing:.12em;text-transform:uppercase}
+.face.cover .ti{font-size:1.7em;font-weight:700;line-height:1.12;text-wrap:balance}
+.face.cover .yr{font-size:.95em}
+.face.title{text-align:center;display:flex;flex-direction:column;justify-content:center;gap:.4em}
+.book-tools{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:12px 16px;border-top:1px solid var(--line)}
+.shelf{display:flex;gap:8px;flex-wrap:wrap}
+.chip{background:var(--panel2);border:1px solid var(--line);color:var(--cream);border-radius:20px;padding:6px 12px;cursor:pointer;font-size:13.5px}
+.chip[aria-pressed="true"]{background:var(--brass);color:#1b1408;border-color:var(--brass);font-weight:700}
+
+/* Timeline / map */
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tl{list-style:none;margin:0;padding:0 0 0 0;position:relative;display:grid;gap:4px}
+.tl li{display:grid;grid-template-columns:86px 18px minmax(0,1fr);gap:8px;align-items:start}
+.tl .y{font-family:var(--serif);font-weight:700;color:var(--brass2);text-align:right;font-variant-numeric:tabular-nums;padding-top:6px}
+.tl .dot{position:relative;height:100%}
+.tl .dot::before{content:"";position:absolute;left:8px;top:0;bottom:-6px;width:2px;background:var(--line)}
+.tl .dot::after{content:"";position:absolute;left:3px;top:10px;width:10px;height:10px;border-radius:50%;background:var(--panel);border:2px solid var(--brass)}
+.tl .t{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 11px;line-height:1.45;margin-bottom:4px}
+.tl .t b{font-family:var(--serif)}
+.tl .t small{display:block;color:var(--muted);margin-top:2px}
+.map-wrap{overflow-x:auto}
+.map-wrap svg{width:100%;min-width:520px;height:auto;display:block}
+.map-wrap .pl{cursor:pointer}
+.place-info{margin-top:10px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:10px 12px;min-height:58px;line-height:1.5}
+.place-info b{font-family:var(--serif);color:var(--brass2)}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+
+/* AI chat */
+.chat{display:flex;flex-direction:column;gap:10px;max-height:min(52vh,460px);overflow:auto;padding-right:4px}
+.msg{max-width:88%;padding:10px 13px;border-radius:12px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.bot{background:var(--panel2);border:1px solid var(--line);align-self:flex-start;border-top-left-radius:3px}
+.msg.me{background:var(--cloth);align-self:flex-end;border-top-right-radius:3px}
+.msg .who{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass);margin-bottom:3px;font-weight:700}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0}
+.ask{display:flex;gap:8px}
+.ask input{flex:1;min-width:0}
+input,textarea,select{background:var(--bg);border:1px solid var(--line);color:var(--cream);border-radius:6px;padding:10px 11px;font:inherit;width:100%}
+textarea{resize:vertical;min-height:84px}
+label{display:grid;gap:5px;font-size:13px;color:var(--muted)}
+
+/* Gallery */
+.gal-main{position:relative;background:#000;display:grid;place-items:center}
+.gal-main img{max-width:100%;max-height:min(58vh,560px);display:block}
+.gal-nav{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:var(--scrim);border:1px solid var(--line);cursor:pointer;font-size:20px}
+.gal-nav.p{left:10px}.gal-nav.n{right:10px}
+.thumbs{display:flex;gap:6px;overflow-x:auto;padding:10px 16px}
+.thumbs img{height:54px;width:auto;border:2px solid transparent;border-radius:3px;cursor:pointer;opacity:.7;flex:none}
+.thumbs img.on{border-color:var(--brass);opacity:1}
+
+/* Pano */
+#pano{position:fixed;inset:0;z-index:12;background:#050706}
+#pano canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+.pano-ui{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;gap:10px;align-items:flex-start;
+  padding-top:calc(12px + env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.pano-cap{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--scrim);border:1px solid var(--line);padding:8px 14px;border-radius:8px;text-align:center;max-width:calc(100vw - 32px)}
+.pano-cap b{font-family:var(--serif);display:block}
+
+/* Projects */
+.pj-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px}
+.pj-form{display:grid;gap:10px;align-content:start}
+.pj-list{display:grid;gap:8px;max-height:min(56vh,520px);overflow:auto;align-content:start}
+.post{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--brass);border-radius:6px;padding:10px 12px;min-width:0}
+.post.review{border-left-color:var(--muted)}
+.post h4{margin:0 0 3px;font-family:var(--serif);font-size:16px;overflow-wrap:anywhere}
+.post .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+.post p{margin:0;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.post .del{float:right;background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px}
+.empty{border:1px dashed var(--line);border-radius:6px;padding:18px;color:var(--muted);line-height:1.5}
+.status{font-size:13px;color:var(--muted);min-height:18px}
+
+/* Plan */
+.plan svg{width:100%;height:auto;max-height:min(52vh,440px);display:block}
+.plan .rm{cursor:pointer}
+.plan .rm:hover rect{fill:#26453a}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:4px 14px;margin-top:12px;font-size:13.5px}
+.legend button{background:none;border:none;text-align:left;padding:4px 0;cursor:pointer;color:var(--cream);display:flex;gap:8px;align-items:baseline}
+.legend button b{color:var(--brass2);font-family:var(--serif);min-width:20px}
+.legend button:hover{color:var(--brass2)}
+
+/* Audio, quiz, sources, project */
+.au-text{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:12px 14px;line-height:1.6;margin:0}
+.qz-bar{height:4px;background:var(--panel2)}
+.qz-bar div{height:100%;width:0;background:var(--brass);transition:width .3s}
+.qz-q{font-family:var(--serif);font-size:20px;line-height:1.3;margin:6px 0 14px;text-wrap:balance}
+.qz-opts{display:grid;gap:8px}
+.qz-opt{text-align:left;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:11px 14px;cursor:pointer;font-size:15px;color:var(--cream)}
+.qz-opt:hover:not([disabled]){border-color:var(--brass)}
+.qz-opt.ok{border-color:#5fbf8f;background:#173a2c}
+.qz-opt.bad{border-color:var(--danger);background:#3a1d19}
+.qz-fb{min-height:20px;margin:12px 0 0;font-weight:700}
+.qz-done{text-align:center;padding:10px 0}
+.qz-done .acts{justify-content:center}
+.qz-score{font-family:var(--serif);font-size:48px;font-weight:700;color:var(--brass2);font-variant-numeric:tabular-nums}
+.src-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+.src{display:grid;grid-template-columns:96px minmax(0,1fr);gap:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px;align-items:start}
+.src canvas{width:96px;height:96px;border-radius:4px;background:#fff}
+.src b{font-family:var(--serif)}
+.src p{margin:4px 0 6px;font-size:13px;color:var(--muted);line-height:1.45}
+.src a,.bib{color:var(--brass2);overflow-wrap:anywhere}
+.bib{margin:0;padding-left:20px;color:var(--cream);font-size:13.5px;line-height:1.6}
+.proj{line-height:1.6;font-size:15px}
+.proj h3{font-family:var(--serif);font-size:17px;margin:18px 0 6px;color:var(--brass2)}
+.proj h3:first-child{margin-top:0}
+.proj p{margin:0 0 8px}
+.proj ul,.proj ol{margin:0 0 8px;padding-left:20px}
+.proj details{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;margin-bottom:8px}
+.proj summary{cursor:pointer;color:var(--brass2)}
+
+@media (max-width:760px){
+  .intro-in{grid-template-columns:1fr;gap:26px}
+  .portrait-card{width:min(100%,190px);order:-1;padding:10px}
+  .info-grid,.pj-grid{grid-template-columns:1fr}
+  .tools{max-width:60vw}
+  .tools .lbl{display:none}
+  #bTime,#bBooks{display:none}
+  .room-tag .sb{display:none}
+  .room-tag{max-width:calc(100vw - 32px - 150px)}
+  .tl li{grid-template-columns:62px 18px minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){.leaf,.book,#fade{transition:none}}
+</style>
+
+</head>
+<body>
+<canvas id="c" tabindex="0" aria-label="3D музей"></canvas>
+<div id="loading">Музей ашылып жатыр…</div>
+
+<div class="hud-top" id="hud" hidden>
+  <div class="room-tag" id="roomTag" role="button" tabindex="0" title="Музей жоспары">
+    <div class="num" id="rNum">1</div>
+    <div class="tx"><div class="nm" id="rName">Кіріспе зал</div><div class="sb" id="rSub"></div></div>
+  </div>
+  <div class="tools">
+    <button class="btn" id="bPlan">▦ <span class="lbl">Жоспар</span></button>
+    <button class="btn" id="bAI">✦ <span class="lbl">AI көмекші</span></button>
+    <button class="btn" id="bBooks">❒ <span class="lbl">Кітаптар</span></button>
+    <button class="btn" id="bTime">⧗ <span class="lbl">Өмір жолы</span></button>
+    <button class="btn" id="bAudio">♪ <span class="lbl">Аудиогид</span></button>
+    <button class="btn" id="bQuiz">? <span class="lbl">Викторина</span></button>
+    <button class="btn" id="bVR" hidden>VR</button>
+    <button class="btn" id="bHelp" aria-label="Көмек">i</button>
+  </div>
+</div>
+<div class="hint" id="hint" hidden></div>
+<div class="pad" id="pad" hidden>
+  <button class="u" data-k="f" aria-label="Алға">▲</button>
+  <button class="l" data-k="l" aria-label="Солға бұрылу">↺</button>
+  <button class="d" data-k="b" aria-label="Артқа">▼</button>
+  <button class="r" data-k="r" aria-label="Оңға бұрылу">↻</button>
+</div>
+<div id="tip" hidden></div>
+<div id="fade"></div>
+
+<!-- Intro -->
+<section id="intro" class="intro" hidden>
+  <div class="intro-bg" id="introBg"></div>
+  <div class="intro-in">
+    <div>
+      <div class="kicker">3D музей жобасы</div>
+      <h1>Қазақтың біртуар ұлы <em>Д.А. Қонаев</em></h1>
+      <p class="subt">тарихи тұлға және дәуір шежіресі</p>
+      <p class="lead">Орталық кеңістік пен бес тақырыптық залдан тұратын 3D виртуалды музей: Өмір жолы, Инженер және ғалым, Қазақстанның дамуы, Тарих және қоғам, Мұра және жады. Уақыт сызығы, карта, 3D кітаптар, үш тілдегі аудиогид, QR-кодтар, викторина және AI көмекші.</p>
+      <ul class="goals">
+        <li>Дінмұхамед Қонаевтың өмірі мен еңбектерін таныстыру</li>
+        <li>Тарихи тұлғаның мұрасын цифрлық форматта сақтау</li>
+        <li>Оқушыларға интерактивті, заманауи музей арқылы танымдық білім беру</li>
+        <li>Дереккөздерді салыстырып, тарихи ақпаратты сыни бағалау дағдысын дамыту</li>
+      </ul>
+      <div class="row">
+        <button class="btn primary" id="enter">Музейге кіру</button>
+        <button class="btn" id="introPlan">Залдар жоспары</button>
+        <button class="btn ghost" id="introProj">Жоба туралы</button>
+      </div>
+      <p class="credits">10-сынып оқушысының ғылыми-зерттеу жобасы бойынша жасалған. Фотосуреттер: Алматыдағы Д.А. Қонаев музейі (Төлебаев көшесі, 117). Портреттер галереясының суреті: RFE/RL. Мәтіндер ашық дереккөздер негізінде қысқаша жазылған.</p>
+    </div>
+    <figure class="portrait-card" style="margin:0">
+      <img id="introPortrait" alt="Дінмұхамед Қонаевтың портреті">
+      <figcaption class="cap"><b>Д.А. Қонаев</b><span>1912 — 1993</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- Info -->
+<div class="sheet" id="sInfo" hidden><div class="card">
+  <div class="card-h"><div><div class="kicker" id="iKick"></div><h2 id="iTitle"></h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b"><div class="info-grid" id="iGrid"><div id="iImgWrap"><img class="info-img" id="iImg" alt=""><div class="credit" id="iCredit"></div></div><div class="info-text"><div id="iText"></div><div class="acts" id="iActs"></div></div></div></div>
+</div></div>
+
+<!-- Book -->
+<div class="sheet" id="sBook" hidden><div class="card" style="width:min(100%,980px)">
+  <div class="card-h"><div><div class="kicker">3D кітап</div><h2 id="bkTitle"></h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div style="padding:10px 16px 0" class="shelf" id="bkShelf"></div>
+  <div class="stage" id="bkStage"><div class="book" id="book"></div></div>
+  <div class="book-tools">
+    <button class="btn" id="bkPrev">‹ Алдыңғы</button>
+    <button class="btn" id="bkNext">Келесі ›</button>
+    <button class="btn" id="bkZin" aria-label="Үлкейту">＋</button>
+    <button class="btn" id="bkZout" aria-label="Кішірейту">－</button>
+    <button class="btn" id="bkRl" aria-label="Солға айналдыру">⟲</button>
+    <button class="btn" id="bkRr" aria-label="Оңға айналдыру">⟳</button>
+    <button class="btn ghost" id="bkReset">Бастапқы көрініс</button>
+  </div>
+  <p class="small muted" style="margin:0;padding:0 16px 14px;text-align:center">Бетті басып парақтаңыз · сүйреп айналдырыңыз · ＋/－ арқылы үлкейтіңіз</p>
+</div></div>
+
+<!-- Timeline / map -->
+<div class="sheet" id="sKiosk" hidden><div class="card">
+  <div class="card-h"><div><div class="kicker">Сенсорлық экран</div><h2>Өмір жолы және карта</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b">
+    <div class="tabs" style="margin-bottom:14px"><button class="chip" data-tab="tl" aria-pressed="true">Өмір жолы</button><button class="chip" data-tab="map" aria-pressed="false">Карта</button></div>
+    <div id="tabTl" style="max-height:min(60vh,560px);overflow:auto;padding-right:4px"><ol class="tl" id="tl"></ol></div>
+    <div id="tabMap" hidden>
+      <div class="map-wrap"><svg id="kzMap" viewBox="0 0 600 330" role="img" aria-label="Қазақстанның схемалық картасы"></svg></div>
+      <div class="place-info" id="placeInfo"><span class="muted">Картадағы нүктені басыңыз.</span></div>
+      <p class="small muted" style="margin:8px 0 0">Карта схемалық, шекаралар мен орындар шамамен көрсетілген.</p>
+    </div>
+  </div>
+</div></div>
+
+<!-- AI -->
+<div class="sheet" id="sAI" hidden><div class="card" style="width:min(100%,720px)">
+  <div class="card-h"><div><div class="kicker">AI көмекші</div><h2>Қонаев туралы сұраңыз</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b">
+    <div class="chat" id="chat"></div>
+    <div class="chips" id="aiChips"></div>
+    <form class="ask" id="askForm"><input id="askIn" autocomplete="off" placeholder="Сұрағыңызды жазыңыз…" maxlength="500"><button class="btn primary" id="askBtn" type="submit">Жіберу</button><button class="btn" id="stopBtn" type="button" hidden>Тоқтату</button></form>
+    <p class="small muted" id="aiNote" style="margin:10px 0 0"></p>
+  </div>
+</div></div>
+
+<!-- Gallery -->
+<div class="sheet" id="sGal" hidden><div class="card" style="width:min(100%,980px)">
+  <div class="card-h"><div><div class="kicker" id="gKick">Слайд-шоу</div><h2 id="gTitle"></h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="gal-main"><img id="gImg" alt=""><button class="gal-nav p" id="gPrev" aria-label="Алдыңғы">‹</button><button class="gal-nav n" id="gNext" aria-label="Келесі">›</button></div>
+  <div class="card-b" style="padding-bottom:4px"><p id="gText" style="margin:0;line-height:1.55"></p><div class="credit" id="gCredit"></div></div>
+  <div class="thumbs" id="thumbs"></div>
+</div></div>
+
+<!-- Projects -->
+<div class="sheet" id="sPj" hidden><div class="card" style="width:min(100%,940px)">
+  <div class="card-h"><div><div class="kicker">Шығармашылық аймақ</div><h2>Оқушылар жобалары мен пікірлер</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b"><div class="pj-grid">
+    <form class="pj-form" id="pjForm">
+      <label>Аты-жөніңіз<input id="pjName" maxlength="60" required placeholder="Мысалы: Айгерім С."></label>
+      <label>Сынып, мектеп<input id="pjCls" maxlength="60" placeholder="9 «А» сынып, №12 мектеп"></label>
+      <label>Түрі<select id="pjKind"><option value="project">Жоба</option><option value="review">Пікір (қонақтар кітабы)</option></select></label>
+      <label>Тақырыбы<input id="pjTitle" maxlength="100" required placeholder="Қонаев дәуіріндегі Алматы ғимараттары"></label>
+      <label>Мәтін<textarea id="pjText" maxlength="1500" required placeholder="Жобаңыздың қысқаша мазмұны немесе музей туралы пікіріңіз"></textarea></label>
+      <div class="row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn primary" type="submit" id="pjSend">Жариялау</button><span class="status" id="pjStatus"></span></div>
+    </form>
+    <div><div class="kicker" style="margin-bottom:8px">Жарияланғандар</div><div class="pj-list" id="pjList"></div></div>
+  </div></div>
+</div></div>
+
+<!-- Plan -->
+<div class="sheet" id="sPlan" hidden><div class="card" style="width:min(100%,760px)">
+  <div class="card-h"><div><div class="kicker">Музей жоспары</div><h2>Залды таңдап, сонда өтіңіз</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b plan">
+    <div class="tabs" style="margin-bottom:12px"><button class="chip" data-floor="1" aria-pressed="true">1-қабат</button><button class="chip" data-floor="2" aria-pressed="false">2-қабат</button></div>
+    <svg id="planSvg" viewBox="-4 -4 308 268"></svg>
+    <div class="legend" id="legend"></div>
+  </div>
+</div></div>
+
+<!-- Help -->
+<div class="sheet" id="sHelp" hidden><div class="card" style="width:min(100%,600px)">
+  <div class="card-h"><div><div class="kicker">Нұсқаулық</div><h2>Музейде қалай жүруге болады</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b info-text">
+    <p><b>Қарау:</b> тышқанмен немесе саусақпен экранды сүйреңіз.</p>
+    <p><b>Жүру:</b> еденнің кез келген жерін басыңыз. Компьютерде W A S D немесе бағыттауыш пернелер, телефонда экрандағы ▲ ▼ ↺ ↻ батырмалары.</p>
+    <p><b>Экспонаттар:</b> сурет, стенд, витрина, кітап немесе экранды басыңыз — толық ақпарат ашылады.</p>
+    <p><b>Бес зал:</b> орталық кеңістіктен 1–5 залдарға өтесіз. Әр залдың «Зал туралы» стендінде аудиогид пен викторина бар.</p>
+    <p><b>Екінші қабат:</b> орталық кеңістіктегі баспалдақты басыңыз.</p>
+    <p><b>Жоспар:</b> жоғарғы сол жақтағы зал атауын басып, кез келген залға бірден өтуге болады.</p>
+    <p class="small muted">VR-көзілдірікпен (мысалы, Meta Quest) бетті браузерде ашсаңыз, жоғарыда «VR» батырмасы пайда болады.</p>
+  </div>
+</div></div>
+
+<!-- Audio guide -->
+<div class="sheet" id="sAudio" hidden><div class="card" style="width:min(100%,680px)">
+  <div class="card-h"><div><div class="kicker">Аудиогид</div><h2 id="auTitle"></h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b">
+    <div class="tabs" id="auLangs" style="margin-bottom:10px"></div>
+    <div class="tabs" id="auHalls" style="margin-bottom:14px"></div>
+    <div class="acts" style="margin:0 0 12px"><button class="btn primary" id="auPlay">▶ Тыңдау</button></div>
+    <p id="auText" class="au-text"></p>
+    <p class="small muted" id="auNote" style="margin:8px 0 0"></p>
+  </div>
+</div></div>
+
+<!-- Quiz -->
+<div class="sheet" id="sQuiz" hidden><div class="card" style="width:min(100%,640px)">
+  <div class="card-h"><div><div class="kicker">Білімді тексер</div><h2 id="qzTitle"></h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="qz-bar"><div id="qzProg"></div></div>
+  <div class="card-b" id="qzBody"></div>
+</div></div>
+
+<!-- Sources -->
+<div class="sheet" id="sSrc" hidden><div class="card" style="width:min(100%,860px)">
+  <div class="card-h"><div><div class="kicker">QR-кодтар</div><h2>Дереккөздер</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b">
+    <div class="src-grid" id="srcGrid"></div>
+    <p class="small muted" id="srcNote" style="margin:12px 0 0"></p>
+    <div class="kicker" style="margin:18px 0 6px">Пайдаланылған әдебиеттер</div>
+    <ol class="bib" id="bib"></ol>
+  </div>
+</div></div>
+
+<!-- Project -->
+<div class="sheet" id="sProj" hidden><div class="card" style="width:min(100%,820px)">
+  <div class="card-h"><div><div class="kicker">Ғылыми-зерттеу жобасы · 10-сынып</div><h2>Қазақтың біртуар ұлы Д.А. Қонаев: тарихи тұлға және дәуір шежіресі</h2></div><button class="x" data-close aria-label="Жабу">×</button></div>
+  <div class="card-b proj" style="max-height:min(72vh,720px);overflow:auto">
+    <h3>Аннотация</h3>
+    <p>Бұл ғылыми жоба қазақ халқының көрнекті мемлекет және қоғам қайраткері Дінмұхамед Ахметұлы Қонаевтың өмір жолын, инженерлік және ғылыми қызметін, Қазақстан тарихындағы орнын зерттеуге арналған. Жобаның практикалық өнімі — бес тақырыптық залдан тұратын 3D виртуалды музей. Жобаның маңызы — тарихи ақпаратты жаттап қана қоймай, дереккөздерді салыстырып, цифрлық ортада зерттеу дағдысын дамыту.</p>
+    <p class="small muted">Түйін сөздер: Д.А. Қонаев, Қазақстан тарихы, тарихи тұлға, цифрлық мұра, 3D музей, виртуалды экскурсия.</p>
+    <details><summary>Аннотация на русском языке</summary><p>Данный научно-исследовательский проект посвящён изучению жизненного пути, инженерной, научной и государственной деятельности Динмухамеда Ахмедовича Кунаева и его места в истории Казахстана. Практическим результатом стал 3D-виртуальный музей из пяти тематических залов: «Жизненный путь», «Инженер и учёный», «Развитие Казахстана», «История и общество», «Наследие и память». Проект способствует развитию исторического мышления, цифровой грамотности и навыков критической оценки источников.</p></details>
+    <details><summary>Abstract in English</summary><p>This research project examines the life, engineering and scientific career, public service, and historical significance of Dinmukhamed Akhmedovich Kunaev. Its practical outcome is a five-room 3D virtual museum: “Life Journey,” “Engineer and Scientist,” “Development of Kazakhstan,” “History and Society,” and “Legacy and Memory.” The project encourages historical awareness, digital literacy, and critical evaluation of historical information.</p></details>
+    <h3>Өзектілігі</h3>
+    <p>Қазіргі оқушылар ақпаратты мәтіннен ғана емес, бейне, интерактивті карта, виртуалды кеңістік және цифрлық экспозиция арқылы да қабылдайды. Сондықтан тарихи тұлға туралы зерттеуді 3D виртуалды музеймен толықтыру — тарихи білімді жаңаша ұсынудың тиімді жолдарының бірі.</p>
+    <h3>Мақсаты</h3>
+    <p>Д.А. Қонаевтың өмір жолы мен қызметін тарихи деректер негізінде зерттеп, оның мұрасын таныстыратын бес залдан тұратын 3D виртуалды музейдің мазмұндық және құрылымдық жобасын әзірлеу.</p>
+    <h3>Міндеттері</h3>
+    <ul>
+      <li>Д.А. Қонаевтың өмірбаяны мен қызметіне қатысты сенімді деректерді жинақтау;</li>
+      <li>оның инженер, ғалым және мемлекет қайраткері ретіндегі қызметін сипаттау;</li>
+      <li>Қазақстанның сол кезеңдегі даму ерекшеліктерін және тарихи қайшылықтарын қарастыру;</li>
+      <li>тарихи мұраны цифрлық форматта ұсынудың мүмкіндіктерін анықтау;</li>
+      <li>бес тақырыптық залдың экспозициялық жоспарын әзірлеу;</li>
+      <li>қажет болған жағдайда оқушылар арасында сауалнама өткізіп, жауаптарды талдау.</li>
+    </ul>
+    <h3>Зерттеу болжамы</h3>
+    <p>Егер тарихи тұлға туралы мәліметтер сенімді дереккөздерге сүйеніп, интерактивті 3D музей түрінде ұсынылса, оқушылардың тақырыпқа қызығушылығы артып, тарихи ақпаратты түсінуіне көмектесуі мүмкін. Болжамды музейге дейін және кейін өткізілетін қысқа тест арқылы тексеруге болады (әр залдағы викторина).</p>
+    <h3>Жаңалығы</h3>
+    <p>Қонаевтың өмірі мен қызметін бес тақырыптық залға бөліп, интерактивті уақыт сызығы, тарихи фотосуреттер, QR-кодтар, аудиогид және танымдық тапсырмалар арқылы таныстыратын 3D музей.</p>
+    <h3>Музейдің құрылымы</h3>
+    <ol>
+      <li><b>Өмір жолы</b> — балалық шағы, отбасы, білім алуы, негізгі даталар; уақыт сызығы мен фотогалерея.</li>
+      <li><b>Инженер және ғалым</b> — тау-кен ісі, өндіріс, Ғылым академиясы; өндіріс схемасы мен карта.</li>
+      <li><b>Қазақстанның дамуы</b> — өнеркәсіп, энергетика, қалалар; «сол кезде · бүгін» салыстыру панельдері.</li>
+      <li><b>Тарих және қоғам</b> — мемлекеттік қызмет, кеңестік басқару жүйесі, 1986 жылғы желтоқсан; жетістіктер мен қайшылықтар.</li>
+      <li><b>Мұра және жады</b> — естеліктер, музей-үй, қоғамдық жады; QR-кодтар, аудиогид, қорытынды викторина.</li>
+    </ol>
+    <p>Қосымша: 2-қабатта конференц-зал, цифрлық кітапхана, VR-аймақ (панорама) және оқушылардың шығармашылық аймағы бар.</p>
+    <h3>Практикалық маңызы</h3>
+    <p>Жоба материалдарын Қазақстан тарихы сабақтарында, сыныптан тыс іс-шараларда, мектеп музейінде және ғылыми жобалар көрмесінде пайдалануға болады. Музейді компьютер, телефон немесе VR-көзілдірік арқылы ашуға болады.</p>
+    <div class="acts"><button class="btn" id="projSrc">Дереккөздер мен әдебиеттер</button><button class="btn" id="projQuiz">Қорытынды викторина</button></div>
+  </div>
+</div></div>
+
+<!-- Pano -->
+<div id="pano" hidden>
+  <canvas id="panoC"></canvas>
+  <div class="pano-ui"><div style="background:var(--scrim);border:1px solid var(--line);padding:8px 12px;border-radius:8px"><div class="kicker">VR-аймақ · панорама</div><div id="panoTitle" style="font-family:var(--serif);font-weight:700;font-size:17px"></div></div><button class="x" id="panoClose" aria-label="Жабу">×</button></div>
+  <div class="pano-cap"><b id="panoCap"></b><span class="small muted">Сүйреп айналаңызды қараңыз</span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(() => {
+"use strict";
+const $ = s => document.querySelector(s);
+const PI = Math.PI;
+const touch = matchMedia('(pointer:coarse)').matches;
+
+/* ---------------- Content ---------------- */
+const PH = {
+  p01:{t:'Жұмыс кабинеті',d:'Қазақстан Компартиясы ОК бірінші хатшысының жұмыс кабинетінің қайта жаңғыртылған көрінісі: мәжіліс үстелі, витриналардағы фотосуреттер мен құжаттар, үстел басындағы Қонаевтың мүсіні.'},
+  p02:{t:'Мәжіліс үстелі және портрет',d:'Кабинеттегі ұзын мәжіліс үстелі. Төрде — Д.А. Қонаевтың майлы бояумен салынған портреті, екі жағында сыйлықтар мен фотосуреттер қойылған витриналар.'},
+  p03:{t:'Үй кітапханасы',d:'Қонаевтың үйіндегі кітап сөрелері және жарықтандырылған витриналардағы жеке коллекция.'},
+  p04:{t:'Музейдің кіреберісі',d:'«Museum Kunaev» стенді, Қонаевтың сөзі жазылған тақта және екінші қабатқа көтерілетін баспалдақ. Қабырғада қызмет жылдарына арналған фотопанельдер.'},
+  p05:{t:'Қонаевтың мүсіні',d:'Жұмыс үстелі басында отырған Д.А. Қонаевтың мүсіні. Үстелде — телефондар, үстел шамы, құжаттар. Әйнек астындағы мәжіліс үстелінде құжаттардың көшірмелері.'},
+  p06:{t:'Үйдегі жұмыс үстелі',d:'Қонаевтың үйдегі жұмыс үстелі: радиоқабылдағыш, көзілдірік, қаламдар, ашық дәптер, магнитофон. Заттар өз орнында сақталған.'},
+  p07:{t:'Жатын бөлме',d:'Қабырғаға кілем ілінген жатын бөлме. 1970–1980 жылдардағы жиһаз бен тұрмыс заттары сақталған.'},
+  p08:{t:'Қонақ бөлме',d:'Үлкен кілем төселген қонақ бөлме: Қонаевтың портреті, теледидар, сыйлыққа берілген бұйымдар қойылған сервант.'},
+  p09:{t:'Экспозиция залы',d:'Қызмет жылдарына арналған жасыл стендтер, әйнек астындағы құжаттар, сыйлықтар мен аңшылық мылтықтар қойылған витриналар.'},
+  p10:{t:'Кітаптар мен қонақтар кітабы',d:'Қонаев туралы басылымдар, фотоальбомдар және келушілер пікір жазатын қонақтар кітабы.'},
+  p11:{t:'Сыйлықтар витринасы',d:'Қонаевқа әр жылдары тарту етілген сыйлықтар мен марапаттар. Оң жақта — «Қазақстан 1955–1986» стенді: республиканың даму көрсеткіштері мен картасы, Қонаев бейнеленген ваза.'},
+  p12:{t:'Отбасылық мұралар',d:'Қонаевтар отбасының тұрмыстық заттары: ағаш сандық, жез самаурын мен табақ.'},
+  p13:{t:'Портреттер галереясы',d:'Д.А. Қонаевтың суретшілер салған портреттері және марапаттары.',c:'Фото: RFE/RL'},
+  p14:{t:'Музей ғимараты',d:'Алматыдағы Төлебаев көшесі, 117. Қонаев осы үйде тұрған. Музей-үй 2002 жылы, оның туғанына 90 жыл толуына орай ашылды.'},
+};
+const SLIDES = ['p14','p04','p01','p05','p02','p09','p11','p13','p08','p07','p06','p03','p10','p12'];
+
+const QUOTE = '«Менің өмірбаяным, менің өмірім республикамыз бастан кешкен процестердің алуан түрлілігін тереңірек және ауқымды түсінуге мүмкіндік береді деп үміттенемін.»';
+const MUSEUM_NAME = '«Қазақтың біртуар ұлы Д.А. Қонаев: тарихи тұлға және дәуір шежіресі»';
+
+const TIMELINE = [
+  ['1912','Верный қаласында (қазіргі Алматы) дүниеге келді','12 қаңтар'],
+  ['1930','Алматыдағы №14 орта мектепті бітірді',''],
+  ['1931–1936','Мәскеуде жоғары білім алды','Түсті металдар және алтын институты, тау-кен инженері'],
+  ['1936 жылдан','Тау-кен өндірісінде еңбек жолын бастады','Балқаш, кейін Риддер мен Лениногорск кеніштері'],
+  ['1942–1952','Қазақ КСР үкіметі басшысының орынбасары','Халық Комиссарлары Кеңесі / Министрлер Кеңесі'],
+  ['1952–1955','Қазақ КСР Ғылым академиясының президенті','Академик, техника ғылымдарының докторы'],
+  ['1955–1960','Қазақ КСР Министрлер Кеңесінің төрағасы','1962–1964 жылдары да осы қызметте'],
+  ['1960–1962','Қазақстан Компартиясы ОК Бірінші хатшысы',''],
+  ['1964–1986','Қазақстан Компартиясы ОК Бірінші хатшысы','Республиканы ширек ғасырға жуық басқарды'],
+  ['1971–1987','КОКП ОК Саяси бюросының мүшесі','1966 жылдан мүшелікке кандидат'],
+  ['1972','Медеу спорт кешені ашылды; бірінші рет Социалистік Еңбек Ері атанды','Кейін 1976 және 1982 жылдары'],
+  ['1978','Алматыда ДДСҰ конференциясы өтіп, Алматы декларациясы қабылданды','Павлодар мұнай өңдеу зауыты іске қосылды'],
+  ['1986','Басшылық қызметтен алынды (16 желтоқсан)','Желтоқсан оқиғасы болған тарихи кезең'],
+  ['1992','«О моём времени» естелік кітабы жарық көрді',''],
+  ['1993','22 тамызда Ақши ауылында қайтыс болды','Алматыдағы Кеңсай зиратына жерленді'],
+  ['1994','«От Сталина до Горбачёва» кітабы жарық көрді',''],
+  ['2002','Төлебаев көшесі, 117 үйде музей-үй ашылды','Туғанына 90 жыл'],
+  ['2022','Қапшағай қаласына Қонаев есімі берілді',''],
+];
+
+const HALLS = {
+  0:{title:'Орталық кеңістік', short:'Музейге қош келдіңіз! Осы жерден бес тақырыптық залдың кез келгеніне өтіңіз. Стендті басып, аудиогидті тыңдаңыз.',
+    kk:'Қош келдіңіз! Бұл — «Қазақтың біртуар ұлы Д.А. Қонаев: тарихи тұлға және дәуір шежіресі» виртуалды музейі. Орталық кеңістіктен бес тақырыптық залдың кез келгеніне өтуге болады: Өмір жолы, Инженер және ғалым, Қазақстанның дамуы, Тарих және қоғам, Мұра және жады. Екінші қабатта конференц-зал, цифрлық кітапхана, VR-аймақ және шығармашылық аймақ орналасқан.',
+    ru:'Добро пожаловать в виртуальный музей «Выдающийся сын казахского народа Д.А. Кунаев: историческая личность и летопись эпохи». Из центрального пространства можно пройти в любой из пяти залов: «Жизненный путь», «Инженер и учёный», «Развитие Казахстана», «История и общество», «Наследие и память». На втором этаже находятся конференц-зал, цифровая библиотека, VR-зона и творческая зона.',
+    en:'Welcome to the virtual museum "D.A. Kunaev, an outstanding son of the Kazakh people: a historical figure and a chronicle of his era". From the central space you can enter any of the five halls: Life Journey, Engineer and Scientist, Development of Kazakhstan, History and Society, and Legacy and Memory. The second floor has a conference hall, a digital library, a VR zone and a creative zone.'},
+  1:{title:'Өмір жолы', short:'Балалық шағы, отбасы, білім алуы және өміріндегі негізгі даталар. Уақыт сызығы мен фотогалереяны ашыңыз.',
+    kk:'Бірінші зал — «Өмір жолы». Дінмұхамед Ахметұлы Қонаев 1912 жылғы 12 қаңтарда Верный қаласында, қазіргі Алматыда дүниеге келді. 1931–1936 жылдары Мәскеуде оқып, тау-кен инженері мамандығын алды. Бұл залда оның балалық шағы, отбасы, білім алуы және өміріндегі негізгі даталар берілген.',
+    ru:'Первый зал — «Жизненный путь». Динмухамед Ахмедович Кунаев родился 12 января 1912 года в городе Верный, ныне Алматы. В 1931–1936 годах учился в Москве и получил специальность горного инженера. В этом зале представлены его детство, семья, образование и главные даты жизни.',
+    en:'Hall one, Life Journey. Dinmukhamed Kunaev was born on 12 January 1912 in the city of Verny, today\'s Almaty. From 1931 to 1936 he studied in Moscow and became a mining engineer. This hall covers his childhood, family, education and the key dates of his life.'},
+  2:{title:'Инженер және ғалым', short:'Тау-кен инженері ретіндегі еңбек жолы, өндіріс саласы және Ғылым академиясындағы қызметі.',
+    kk:'Екінші зал — «Инженер және ғалым». Қонаев еңбек жолын 1936 жылы Балқаш мыс қорыту комбинатында бастап, кейін Риддер мен Лениногорск кеніштерінде басшы болды. 1952–1955 жылдары Қазақ КСР Ғылым академиясының президенті болды. Ғылымның дамуы тек бір адамның емес, сол кезеңдегі көптеген ғалымдар мен мекемелердің еңбегі екенін ескереміз.',
+    ru:'Второй зал — «Инженер и учёный». Кунаев начал трудовой путь в 1936 году на Балхашском медеплавильном комбинате, затем руководил рудниками в Риддере и Лениногорске. В 1952–1955 годах он был президентом Академии наук Казахской ССР. Развитие науки — заслуга многих учёных и научных учреждений того времени.',
+    en:'Hall two, Engineer and Scientist. Kunaev began his career in 1936 at the Balkhash copper smelter and later managed mines in Ridder and Leninogorsk. From 1952 to 1955 he was president of the Academy of Sciences of the Kazakh SSR. Scientific progress was the work of many scientists and institutions of that time.'},
+  3:{title:'Қазақстанның дамуы', short:'Өнеркәсіп, энергетика, қалалар, инфрақұрылым, білім мен ғылым. «Сол кезде · бүгін» салыстыру панельдері.',
+    kk:'Үшінші зал — «Қазақстанның дамуы». Қонаев басшылық еткен жылдары республикада өнеркәсіп, энергетика, қалалар мен әлеуметтік инфрақұрылым дамыды. Алматыда Медеу кешені, «Қазақстан» қонақүйі, Көктөбе телемұнарасы салынды, Павлодар мен Шымкентте мұнай өңдеу зауыттары іске қосылды. Шешімдердің көпшілігі кеңестік орталықтандырылған басқару жүйесі аясында қабылданғанын ескеру керек.',
+    ru:'Третий зал — «Развитие Казахстана». В годы руководства Кунаева в республике развивались промышленность, энергетика, города и социальная инфраструктура. В Алматы построены Медеу, гостиница «Казахстан» и телебашня на Кок-Тобе, в Павлодаре и Шымкенте запущены нефтеперерабатывающие заводы. Большинство решений принималось в рамках централизованной советской системы управления.',
+    en:'Hall three, Development of Kazakhstan. Under Kunaev\'s leadership the republic\'s industry, energy, cities and social infrastructure grew. Almaty gained the Medeu skating complex, the Hotel Kazakhstan and the Kok-Tobe TV tower, and oil refineries opened in Pavlodar and Shymkent. Most decisions were made within the centralised Soviet system of government.'},
+  4:{title:'Тарих және қоғам', short:'Мемлекеттік қызметі, кеңестік басқару жүйесі және 1986 жылғы Желтоқсан оқиғасының тарихи контексі.',
+    kk:'Төртінші зал — «Тарих және қоғам». Қонаев 1960–1962 және 1964–1986 жылдары Қазақстан Компартиясы Орталық Комитетінің Бірінші хатшысы болды. 1986 жылғы 16 желтоқсанда қызметтен босатылуы Желтоқсан оқиғасымен тұспа-тұс келді. Бұл залда оқиғалар бірнеше дереккөз негізінде, жетістіктер де, қайшылықтар да қатар қаралады.',
+    ru:'Четвёртый зал — «История и общество». Кунаев был первым секретарём ЦК Компартии Казахстана в 1960–1962 и 1964–1986 годах. Его освобождение от должности 16 декабря 1986 года совпало с Декабрьскими событиями. В этом зале события рассматриваются по нескольким источникам, вместе с достижениями и противоречиями эпохи.',
+    en:'Hall four, History and Society. Kunaev was First Secretary of the Communist Party of Kazakhstan in 1960–1962 and 1964–1986. His removal on 16 December 1986 coincided with the December events. This hall looks at those events through several sources, together with both the achievements and the contradictions of the era.'},
+  5:{title:'Мұра және жады', short:'Еңбектері, естеліктері, музейлік мұра және қоғамдық жады. QR-кодтар, аудиогид және қорытынды викторина.',
+    kk:'Бесінші зал — «Мұра және жады». Мұнда Қонаевтың естелік кітаптары, Алматыдағы музей-үйдің материалдары және оның есімін сақтаған қоғамдық жады туралы мәліметтер бар. 2022 жылы Қапшағай қаласына Қонаев есімі берілді. QR-кодтар арқылы дереккөздерге өтіп, соңында қорытынды викторинаны орындаңыз.',
+    ru:'Пятый зал — «Наследие и память». Здесь представлены мемуары Кунаева, материалы дома-музея в Алматы и сведения о том, как сохраняется память о нём. В 2022 году городу Капшагай присвоено имя Конаева. По QR-кодам можно перейти к источникам, а в конце пройти итоговую викторину.',
+    en:'Hall five, Legacy and Memory. Here you will find Kunaev\'s memoirs, materials from the house-museum in Almaty and how his name is remembered today. In 2022 the city of Kapchagay was renamed Qonaev. Use the QR codes to open the sources, and finish with the final quiz.'},
+};
+
+const QUIZ = {
+  1:[
+    ['Қонаев қай жылы туған?',['1910','1912','1915','1920'],1],
+    ['Ол туған Верный қаласы қазір қалай аталады?',['Алматы','Астана','Талдықорған','Шымкент'],0],
+    ['Қонаев 1931–1936 жылдары қай қалада жоғары білім алды?',['Алматыда','Ленинградта','Мәскеуде','Қарағандыда'],2],
+    ['Қонаев қай жылы қайтыс болды?',['1986','1991','1993','1997'],2],
+  ],
+  2:[
+    ['Қонаевтың мамандығы қандай?',['Дәрігер','Тау-кен инженері','Мұғалім','Заңгер'],1],
+    ['Қонаев еңбек жолын қай кәсіпорында бастады?',['Балқаш мыс қорыту комбинатында','Қарағанды металлургия комбинатында','Павлодар алюминий зауытында','Шымкент цемент зауытында'],0],
+    ['1952–1955 жылдары қандай қызмет атқарды?',['Ғылым академиясының президенті','Алматы қаласының басшысы','Мектеп директоры','Елші'],0],
+    ['Ғылыми жетістіктерді неге тек бір адамның еңбегімен түсіндіруге болмайды?',['Ол кезде ғылым болмаған','Көптеген ғалымдар мен ғылыми мекемелердің де үлесі бар','Академия жабық болған','Себебі белгісіз'],1],
+  ],
+  3:[
+    ['Медеу спорт кешені қай жылы ашылды?',['1965','1972','1980','1986'],1],
+    ['1955–1986 жылдары көмір өндіру шамамен қалай өсті?',['10-нан 20 млн тоннаға','28-ден 132 млн тоннаға','50-ден 60 млн тоннаға','100-ден 110 млн тоннаға'],1],
+    ['1978 жылы мұнай өңдеу зауыты қай қалада іске қосылды?',['Атырауда','Павлодарда','Ақтауда','Оралда'],1],
+    ['1970 жылы қай облыс құрылды?',['Торғай','Жезқазған','Маңғыстау','Қостанай'],0],
+  ],
+  4:[
+    ['Қонаев Қазақстан Компартиясы ОК Бірінші хатшысы болған жылдар?',['1955–1960','1960–1962 және 1964–1986','1942–1952','1986–1991'],1],
+    ['Қонаев неше рет Социалистік Еңбек Ері атанды?',['1','2','3','4'],2],
+    ['1986 жылғы 16 желтоқсанда Қонаевтың орнына кім тағайындалды?',['Г. Колбин','М. Горбачев','Ж. Шаяхметов','Л. Брежнев'],0],
+    ['Тарихи тұлғаға ғылыми баға беру үшін не қажет?',['Тек жетістіктерін атау','Тек сынау','Жетістіктер мен қайшылықтарды дереккөздер негізінде қарау','Бір ғана дереккөзге сүйену'],2],
+  ],
+  5:[
+    ['Алматыдағы Қонаев музей-үйі қай көшеде орналасқан?',['Абай даңғылында','Төлебаев көшесінде','Сәтбаев көшесінде','Достық даңғылында'],1],
+    ['2022 жылы қай қалаға Қонаев есімі берілді?',['Талғарға','Есікке','Қапшағайға','Текеліге'],2],
+    ['«От Сталина до Горбачёва» кітабы қай жылы жарық көрді?',['1986','1990','1994','2002'],2],
+    ['Виртуалды музейде фотосуретті пайдаланғанда не көрсету керек?',['Авторы мен дереккөзін','Тек түсін','Файл көлемін','Ештеңе керек емес'],0],
+  ],
+};
+
+const SOURCES = [
+  {t:'Д.А. Қонаевтың ресми сайты', u:'https://www.kunaev.kz/', d:'Өмірбаян, мұра және музей туралы материалдар (жобаның әдебиеттер тізімі, 2-дереккөз).'},
+  {t:'Қазақстанның электрондық музейі', u:'https://e-museum.kz/', d:'Д.А. Қонаев музейіне қатысты каталогтық материалдар (4-дереккөз).'},
+  {t:'Мемлекеттік органдардың ақпараттық ресурсы', u:'https://www.gov.kz/', d:'Д.А. Қонаев туралы өмірбаяндық материалдар (3-дереккөз).'},
+];
+const BIBLIO = [
+  'Қонаев Д.А. Өтті дәурен осылай. Естелік кітабы. (Басылым жылы, баспасы және беттері кітапхана каталогы бойынша нақтыланады.)',
+  'Д.А. Қонаевтың ресми сайты. https://www.kunaev.kz/',
+  'Қазақстан Республикасы мемлекеттік органдарының ақпараттық ресурсы. https://www.gov.kz/',
+  'Қазақстанның электрондық музейі. https://e-museum.kz/',
+  'Қазақстан тарихы бойынша мектеп оқулығы.',
+  'Blender Foundation. Blender — 3D creation software. https://www.blender.org/',
+];
+
+const FACTS = `Дінмұхамед Ахметұлы Қонаев (Кунаев), 12.01.1912, Верный (Алматы) — 22.08.1993, Ақши ауылы (Алакөл ауданы); Алматыдағы Кеңсай зиратына жерленген.
+1930 — Алматыдағы №14 мектепті бітірді. 1931–1936 — Мәскеудегі Түсті металдар және алтын институтын бітірді (тау-кен инженері).
+Балқаш мыс қорыту комбинатында машинист, цех бастығы, бас инженер, Қоңырат кенішінің директоры; кейін Риддер, Лениногорск кеніштерінде басшы (1942 жылға дейін).
+1942–1952 — Қазақ КСР ХКК/Министрлер Кеңесі төрағасының орынбасары. 1952–1955 — Қазақ КСР Ғылым академиясының президенті; академик, техника ғылымдарының докторы; 200-ге жуық ғылыми еңбек (ашық тәсілмен кен өндіру).
+1955–1960 және 1962–1964 — Қазақ КСР Министрлер Кеңесінің төрағасы. 1960–1962 және 1964–1986 — Қазақстан Компартиясы ОК бірінші хатшысы.
+1966 жылдан КОКП ОК Саяси бюросы мүшелігіне кандидат, 1971–1987 толық мүшесі.
+Үш мәрте Социалистік Еңбек Ері (1972, 1976, 1982), 8 Ленин орденінің иегері, Лениндік сыйлықтың лауреаты.
+Басқару жылдары: Медеу (1972), «Қазақстан» қонақүйі, Ұлттық кітапхана ғимараты, Көктөбе телемұнарасы салынды; Павлодар (1978), Шымкент (1985) мұнай өңдеу зауыттары; көмір өндіру 1955–1986 жж. 28 млн т-дан 132 млн т-ға өсті; 1970 — Торғай, 1973 — Жезқазған облыстары құрылды; 1978 — Алматыда ДДСҰ конференциясы, Алматы декларациясы.
+1986 ж. 16 желтоқсан — қызметтен босатылып, орнына Г. Колбин тағайындалды; бұл Желтоқсан оқиғасына түрткі болды.
+Жұбайы — Зухра Шәріпқызы (1990 ж. қайтыс болған). Інісі — Асқар Қонаев, академик, 1974–1986 жж. Қазақ КСР Ғылым академиясының президенті.
+Кітаптары: «О моём времени» (1992), «От Сталина до Горбачёва» (1994).
+Музей-үй: Алматы, Төлебаев көшесі 117; 2002 жылы ашылған. 2022 жылы Қапшағай қаласы Қонаев деп аталды.
+Осы виртуалды музейдің құрылымы (оқушының ғылыми жобасы бойынша): Орталық кеңістік және бес тақырыптық зал — 1 «Өмір жолы», 2 «Инженер және ғалым», 3 «Қазақстанның дамуы», 4 «Тарих және қоғам» (кабинет реконструкциясы, 1986 ж. желтоқсан, жетістіктер мен қайшылықтар), 5 «Мұра және жады» (кітаптар, QR, аудиогид, викторина); 2-қабатта: 6 Конференц-зал, 7 Цифрлық кітапхана, 8 VR-аймақ, 9 Шығармашылық аймақ.`;
+
+const RULES = `Сен — Дінмұхамед Қонаевқа арналған виртуалды 3D музейдің AI көмекшісісің. Келушілер — негізінен оқушылар.
+Ережелер:
+- Сұрақ қай тілде қойылса, сол тілде жауап бер (әдепкі тіл — қазақ тілі).
+- Жауап қысқа әрі нақты болсын: 2–6 сөйлем, оқушыға түсінікті тілмен.
+- Төмендегі фактілерге және жалпыға белгілі тарихи мәліметтерге сүйен. Сенімді болмасаң, ашық айт; күн, сан, дәйексөзді ойдан шығарма.
+- Орынды жерде музейдің тиісті залын атап өт (мысалы: «Бұл туралы 4-залда толығырақ»).
+- Саяси бағалау сұралса, әр түрлі көзқарастарды бейтарап түрде қысқа айт: жетістіктермен қатар дәуірдің қайшылықтарын да атап, дереккөздерді салыстыруға шақыр.
+Фактілер:
+${FACTS}`;
+
+const FAQ = {
+  'Қонаев кім болған?':'Дінмұхамед Ахметұлы Қонаев (1912–1993) — мемлекет қайраткері, тау-кен инженері, академик. 1964–1986 жылдары (бұған дейін 1960–1962 жылдары да) Қазақстан Компартиясы ОК бірінші хатшысы болып, республиканы ширек ғасырға жуық басқарды. Үш мәрте Социалистік Еңбек Ері. Толығырақ — орталық кеңістік пен 1-залда.',
+  'Қай жылдары Қазақстанды басқарды?':'Қазақ КСР Министрлер Кеңесінің төрағасы: 1955–1960 және 1962–1964. Қазақстан Компартиясы ОК бірінші хатшысы: 1960–1962 және 1964–1986. 1986 жылғы 16 желтоқсанда қызметінен босатылды. Бұл туралы 4-залда «Тарих және қоғам».',
+  'Қандай марапаттары бар?':'Үш мәрте Социалистік Еңбек Ері (1972, 1976, 1982), 8 Ленин орденінің иегері, Лениндік сыйлықтың лауреаты. Марапаттар 4-залда.',
+  'Қандай кітаптар жазды?':'Естелік кітаптары: «О моём времени» (1992) және «От Сталина до Горбачёва» (1994). Сондай-ақ тау-кен ісі бойынша 200-ге жуық ғылыми еңбектің авторы. Кітаптарды 5-залда «Мұра және жады» 3D түрде парақтауға болады.',
+  'Музей қайда орналасқан?':'Нағыз музей-үй Алматыда, Төлебаев көшесі 117 мекенжайында. Ол 2002 жылы Қонаевтың туғанына 90 жыл толуына орай ашылған. Ғимарат суреті — 5-залда.',
+  'Алматыда не салынды?':'Қонаев басқарған жылдары Алматыда Медеу спорт кешені (1972), «Қазақстан» қонақүйі, Ұлттық кітапхана ғимараты, Көктөбедегі телемұнара салынды. 3-залды «Қазақстанның дамуы» қараңыз.',
+};
+
+const BOOKS = [
+  {id:'b0',title:'Өтті дәурен осылай',sub:'Естелік кітабы (қазақ тілінде)',author:'Д.А. Қонаев',year:'Естеліктер',color:'#5a2a14',
+   pages:[
+    {title:true,h:'Өтті дәурен осылай',p:'Д.А. Қонаев<br><br><i>Мұражай анықтамасы</i>'},
+    {h:'Кітап туралы',p:'Қонаевтың қазақ тіліндегі естелік кітабы. Ғылыми жобаның әдебиеттер тізімінде бірінші дереккөз ретінде көрсетілген.'},
+    {h:'Неге маңызды?',p:'Естелік — оқиғаға қатысқан адамның өз көзқарасы. Ол бағалы дерек, бірақ тарихшы оны архив құжаттарымен және басқа дереккөздермен салыстырып оқиды.'},
+    {h:'Оқуға сұрақтар',list:['Автор өз балалық шағын қалай сипаттайды?','Қай оқиғаларды ол ерекше маңызды деп санайды?','Қай мәліметтерді басқа дереккөзбен тексеруге болады?']},
+    {img:'p03',cap:'Қонаевтың үй кітапханасы'},
+    {h:'Ескерту',p:'Басылым жылы, баспасы және беттері кітапхана каталогы бойынша нақтыланады. Сканерленген беттер берілсе, оларды осы 3D кітапқа қосуға болады.'},
+   ]},
+  {id:'b1',title:'О моём времени',sub:'«Менің заманым туралы» — естеліктер',author:'Д.А. Кунаев',year:'Алматы · 1992',color:'#6d1f1c',
+   pages:[
+    {title:true,h:'О моём времени',p:'Д.А. Кунаев · 1992<br><br><i>Мұражай анықтамасы</i>'},
+    {h:'Кітап туралы',p:'Қонаев өмірінің соңғы жылдарында жазылған естелік кітабы. Автор балалық шағын, оқу жылдарын, кен орындарындағы инженерлік жұмысын және республиканы басқарған кезеңін баяндайды.'},
+    {h:'Негізгі тақырыптар',list:['Верный қаласындағы балалық шақ','Мәскеудегі оқу жылдары','Балқаш пен Риддердегі еңбек','Ғылым академиясы','Республиканы басқару жылдары']},
+    {h:'Неге оқу керек?',p:'Кітап 1940–1980 жылдардағы Қазақстанның өнеркәсібі, ғылымы мен мәдениеті туралы сол оқиғаларға тікелей қатысқан адамның көзқарасын береді.'},
+    {img:'p10',cap:'Мұражай қорындағы кітаптар'},
+    {h:'Ескерту',p:'Бұл беттерде кітаптың мазмұны қысқаша берілген. Толық мәтінді кітапханадан оқуға болады. Сканерленген беттер берілсе, оларды осы 3D кітапқа қосуға болады.'},
+   ]},
+  {id:'b2',title:'От Сталина до Горбачёва',sub:'«Сталиннен Горбачевқа дейін» — естеліктер',author:'Д.А. Кунаев',year:'Алматы · 1994',color:'#1c3557',
+   pages:[
+    {title:true,h:'От Сталина до Горбачёва',p:'Д.А. Кунаев · 1994<br><br><i>Мұражай анықтамасы</i>'},
+    {h:'Кітап туралы',p:'Автор қайтыс болғаннан кейін, 1994 жылы жарық көрген естеліктер. Қонаев Кеңес Одағының бірнеше басшысы тұсында атқарған жұмысын еске алады.'},
+    {h:'Кезеңдер',list:['Соғыс жылдарындағы үкімет жұмысы','Тың игеру кезеңі','Саяси бюро мүшелігі','1986 жылғы желтоқсан']},
+    {h:'Желтоқсан',p:'Кітапта 1986 жылғы желтоқсан оқиғалары мен автордың қызметтен кетуі туралы оның өз көзқарасы баяндалады.'},
+    {img:'p11',cap:'«Қазақстан 1955–1986» стенді'},
+    {h:'Ескерту',p:'Бұл беттерде кітаптың мазмұны қысқаша берілген. Толық мәтінді кітапханадан оқуға болады.'},
+   ]},
+  {id:'b3',title:'Музей альбомы',sub:'Музей фотосуреттері',author:'Д.А. Қонаев музейі',year:'Алматы · Төлебаев к., 117',color:'#1d4a3c',
+   pages:['p14','p04','p01','p05','p02','p09','p11','p13','p08','p07','p06','p03'].map(k=>({img:k,cap:PH[k].t}))},
+];
+
+const PLACES = [
+  {n:'Алматы',lon:76.9,lat:43.25,d:'Туған қаласы (бұрынғы Верный, 1912). Ұзақ жылдар республика астанасы ретінде осында қызмет етті. Музей-үй — Төлебаев к., 117.',dx:-22,dy:22},
+  {n:'Қонаев',lon:77.07,lat:43.87,d:'Бұрынғы Қапшағай қаласы. 2022 жылы Дінмұхамед Қонаевтың есімі берілді.',dx:8,dy:-6},
+  {n:'Балқаш',lon:74.98,lat:46.84,d:'Еңбек жолы осында басталды: мыс қорыту комбинатында машинист, бас инженер, Қоңырат кенішінің директоры.',dx:8,dy:-6},
+  {n:'Риддер',lon:83.5,lat:50.35,d:'Алтайдағы Риддер және Лениногорск кеніштерінде басшылық қызметтер атқарды (1942 жылға дейін).',dx:8,dy:-6},
+  {n:'Ақши',lon:80.9,lat:45.95,d:'Алакөл ауданындағы ауыл. Қонаев 1993 жылғы 22 тамызда осында қайтыс болды.',dx:8,dy:14},
+  {n:'Павлодар',lon:76.95,lat:52.29,d:'1978 жылы Павлодар мұнай өңдеу зауыты іске қосылды.',dx:8,dy:-6},
+  {n:'Шымкент',lon:69.6,lat:42.32,d:'1985 жылы Шымкент мұнай өңдеу зауыты іске қосылды.',dx:-72,dy:4},
+  {n:'Жезқазған',lon:67.7,lat:47.8,d:'1973 жылы Жезқазған облысы құрылды.',dx:8,dy:-6},
+];
+const KZ = [[46.6,48.4],[47.0,49.2],[46.8,50.0],[48.0,50.7],[48.6,51.6],[50.8,51.7],[52.6,51.5],[55.7,50.6],[57.5,51.0],[59.0,50.6],[61.4,50.8],[61.0,52.0],[60.0,52.5],[61.0,53.0],[61.2,54.0],[65.2,54.6],[68.2,55.0],[70.8,55.3],[73.4,54.0],[76.5,54.2],[77.8,53.3],[80.0,50.9],[83.4,51.0],[85.0,49.9],[86.8,49.8],[87.3,49.1],[85.7,47.1],[83.0,47.2],[82.3,45.5],[79.9,44.9],[80.3,42.2],[79.2,42.8],[75.0,42.9],[73.5,42.4],[71.0,42.3],[70.0,41.4],[68.4,40.6],[66.7,41.2],[66.0,42.9],[64.0,43.6],[62.0,43.5],[58.6,45.6],[56.0,45.0],[56.0,41.3],[55.4,41.3],[53.0,42.1],[52.7,42.6],[51.3,43.2],[51.0,44.5],[50.3,44.6],[51.2,45.0],[52.9,45.3],[53.1,46.3],[51.2,47.0],[49.2,46.4],[48.6,46.6]];
+
+const ROOMS = [
+  {id:0,f:1,b:'О',x0:-5,x1:5,z0:-6,z1:12,name:'Орталық кеңістік',sub:'Кіріспе, портрет, бейнежоба',sp:[0,10,0]},
+  {id:1,f:1,b:'1',x0:-15,x1:-5,z0:-1,z1:12,name:'Өмір жолы',sub:'Балалық шақ, отбасы, білім',sp:[-6.3,5,PI/2]},
+  {id:2,f:1,b:'2',x0:-15,x1:-5,z0:-14,z1:-1,name:'Инженер және ғалым',sub:'Тау-кен ісі, Ғылым академиясы',sp:[-6.3,-3.5,PI/2]},
+  {id:3,f:1,b:'3',x0:-5,x1:5,z0:-14,z1:-6,name:'Қазақстанның дамуы',sub:'Өнеркәсіп, қалалар, ғылым',sp:[0,-7.2,0]},
+  {id:4,f:1,b:'4',x0:5,x1:15,z0:-14,z1:-1,name:'Тарих және қоғам',sub:'Мемлекеттік қызмет, 1986 жыл',sp:[6.3,-3.5,-PI/2]},
+  {id:5,f:1,b:'5',x0:5,x1:15,z0:-1,z1:12,name:'Мұра және жады',sub:'Кітаптар, QR, викторина',sp:[6.3,5,-PI/2]},
+  {id:20,f:2,b:'Х',x0:-5,x1:5,z0:-4,z1:12,name:'2-қабат холы',sub:'қосымша аймақтар',sp:[0,10,0]},
+  {id:6,f:2,b:'6',x0:-15,x1:-5,z0:-14,z1:12,name:'Конференц-зал',sub:'дәрістер, іс-шаралар',sp:[-6.3,0,PI/2]},
+  {id:7,f:2,b:'7',x0:5,x1:15,z0:-14,z1:0,name:'Цифрлық кітапхана',sub:'Қонаевтың еңбектері',sp:[6.3,-2,-PI/2]},
+  {id:8,f:2,b:'8',x0:-5,x1:5,z0:-14,z1:-4,name:'VR-аймақ',sub:'панорамалық саяхат',sp:[0,-5.2,0]},
+  {id:9,f:2,b:'9',x0:5,x1:15,z0:0,z1:12,name:'Шығармашылық аймақ',sub:'оқушылар жобалары',sp:[6.3,6,-PI/2]},
+];
+const RM = id => ROOMS.find(r => r.id === id);
+
+const PANOS = {
+  home:{t:'Қонаевтың үйі',set:['p08','p07','p06','p03']},
+  office:{t:'Жұмыс кабинеті',set:['p01','p05','p02','p11']},
+  museum:{t:'Музей экспозициясы',set:['p14','p04','p09','p13']},
+};
+
+/* ---------------- Images ---------------- */
+const images = {};
+const IMGS = Object.keys(PH).concat(['portrait1','portrait2']);
+const loadImg = n => new Promise(r => { const i = new Image(); i.onload = () => { images[n] = i; r(); }; i.onerror = () => r(); i.src = 'img/' + n + '.jpg'; });
+const src = n => 'img/' + n + '.jpg';
+
+/* ---------------- Three setup ---------------- */
+const canvas = $('#c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+try{ ANISO = Math.min(16, renderer.capabilities.getMaxAnisotropy()); }catch(_){}
+renderer.xr.enabled = true;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0e0c);
+const camera = new THREE.PerspectiveCamera(70, 1, 0.05, 80);
+camera.rotation.order = 'YXZ';
+const rig = new THREE.Group(); rig.add(camera); camera.position.y = 1.6; scene.add(rig);
+scene.add(new THREE.HemisphereLight(0xfff2dc, 0x2a2219, 0.62));
+scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+
+const FL = {1:mkFloor(), 2:mkFloor()};
+function mkFloor(){ const g = new THREE.Group(); scene.add(g); return {group:g, boxes:[], walls:[], floors:[], clickables:[], anim:[]}; }
+let floor = 1; let F = FL[1];
+let yaw = 0, pitch = 0;
+
+/* ---------------- Canvas textures ---------------- */
+function cnv(w,h){ const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
+const SC = 1.75;
+function cnvS(w,h){ const c = document.createElement('canvas'); c.width = Math.round(w*SC); c.height = Math.round(h*SC); const x = c.getContext('2d'); x.scale(SC,SC); return [c, x]; }
+let ANISO = 8;
+function ctex(c, rx=1, ry=1){ const t = new THREE.CanvasTexture(c); t.anisotropy = ANISO; if(rx!==1||ry!==1){ t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx,ry); } return t; }
+const texCache = {};
+function itex(n){ if(texCache[n]) return texCache[n]; let t; if(images[n]){ t = new THREE.Texture(images[n]); t.needsUpdate = true; } else { const [c,x] = cnv(64,64); x.fillStyle='#333'; x.fillRect(0,0,64,64); t = ctex(c); } t.anisotropy = ANISO; return texCache[n] = t; }
+function wrap(x, text, maxW){ const out = []; for(const para of String(text).split('\n')){ const words = para.split(/\s+/); let line = ''; for(const w of words){ const t = line ? line + ' ' + w : w; if(x.measureText(t).width > maxW && line){ out.push(line); line = w; } else line = t; } out.push(line); } return out; }
+function noise(x, w, h, a){ for(let i=0;i<w*h/60;i++){ x.fillStyle = `rgba(${Math.random()<.5?0:255},${Math.random()<.5?0:255},${Math.random()<.5?0:255},${a*Math.random()})`; x.fillRect(Math.random()*w, Math.random()*h, 2, 2); } }
+
+function wallCanvas(){
+  const [c,x] = cnv(256,512);
+  x.fillStyle = '#244a3e'; x.fillRect(0,0,256,512);
+  noise(x,256,360,.05);
+  const wy = 512*0.7;
+  x.fillStyle = '#5b3520'; x.fillRect(0,wy,256,512-wy);
+  x.strokeStyle = 'rgba(0,0,0,.35)'; x.lineWidth = 3;
+  x.strokeRect(14, wy+18, 228, 512-wy-36);
+  x.strokeStyle = 'rgba(255,220,170,.12)'; x.lineWidth = 2; x.strokeRect(20, wy+24, 216, 512-wy-48);
+  x.fillStyle = '#b8924f'; x.fillRect(0, wy-6, 256, 6);
+  x.fillStyle = '#3d2314'; x.fillRect(0, 498, 256, 14);
+  return c;
+}
+function parquetCanvas(){
+  const [c,x] = cnv(512,512);
+  const cols = ['#7a4a28','#83522d','#6f4224','#8a5a33','#76482a'];
+  for(let r=0;r<16;r++){ let off = (r%2)*64; for(let k=-1;k<5;k++){ x.fillStyle = cols[(r*7+k*3+5)%cols.length]; x.fillRect(k*128+off, r*32, 128, 32); x.strokeStyle='rgba(0,0,0,.35)'; x.strokeRect(k*128+off+.5, r*32+.5, 128, 32); } }
+  noise(x,512,512,.06); return c;
+}
+function stoneCanvas(){
+  const [c,x] = cnv(512,512);
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++){ x.fillStyle = (i+j)%2 ? '#cfc4ad' : '#d9cfba'; x.fillRect(i*128,j*128,128,128); }
+  x.strokeStyle = 'rgba(80,70,50,.35)'; x.lineWidth = 2; for(let i=0;i<=4;i++){ x.beginPath(); x.moveTo(i*128,0); x.lineTo(i*128,512); x.stroke(); x.beginPath(); x.moveTo(0,i*128); x.lineTo(512,i*128); x.stroke(); }
+  x.fillStyle = '#2f5a4b'; for(let i=0;i<=4;i++) for(let j=0;j<=4;j++){ x.save(); x.translate(i*128,j*128); x.rotate(PI/4); x.fillRect(-9,-9,18,18); x.restore(); }
+  noise(x,512,512,.05); return c;
+}
+function carpetCanvas(){
+  const [c,x] = cnv(512,640);
+  x.fillStyle = '#7d1e1c'; x.fillRect(0,0,512,640);
+  x.strokeStyle = '#d8b46a'; x.lineWidth = 10; x.strokeRect(20,20,472,600);
+  x.fillStyle = '#1c2e4a'; x.fillRect(44,44,424,552);
+  x.fillStyle = '#7d1e1c'; x.fillRect(64,64,384,512);
+  for(let k=0;k<4;k++){ const s = 190 - k*44; x.fillStyle = ['#d8b46a','#1c2e4a','#e8dcc0','#7d1e1c'][k]; x.beginPath(); x.moveTo(256,320-s); x.lineTo(256+s*0.8,320); x.lineTo(256,320+s); x.lineTo(256-s*0.8,320); x.closePath(); x.fill(); }
+  x.fillStyle = '#e8dcc0'; for(let i=0;i<10;i++){ x.fillRect(80+i*36,84,14,14); x.fillRect(80+i*36,542,14,14); }
+  noise(x,512,640,.07); return c;
+}
+function panelCanvas(p, w=1.3, h=1.8){
+  const W = 512, H = Math.round(W*h/w); const [c,x] = cnvS(W,H);
+  x.fillStyle = '#1d4a3c'; x.fillRect(0,0,W,H);
+  const g = x.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba(255,255,255,.07)'); g.addColorStop(1,'rgba(0,0,0,.22)'); x.fillStyle = g; x.fillRect(0,0,W,H);
+  x.strokeStyle = '#c9a45c'; x.lineWidth = 3; x.strokeRect(18,18,W-36,H-36);
+  let y = 54;
+  if(p.kicker){ x.fillStyle = '#c9a45c'; x.font = '700 21px "PT Sans", sans-serif'; for(const l of wrap(x, p.kicker.toUpperCase(), W-90)){ y += 4; x.fillText(l, 44, y); y += 24; } }
+  if(p.year){ x.fillStyle = '#e6cd94'; x.font = '700 70px "PT Serif", serif'; y += 58; x.fillText(p.year, 44, y); y += 6; }
+  x.fillStyle = '#f4ebd8'; x.font = '700 35px "PT Serif", serif';
+  for(const l of wrap(x, p.title, W-88)){ y += 42; x.fillText(l, 44, y); }
+  y += 18; x.fillStyle = '#c9a45c'; x.fillRect(44, y, 64, 3); y += 12;
+  x.fillStyle = '#dce6df'; x.font = '400 25px "PT Sans", sans-serif';
+  for(const l of wrap(x, p.body || '', W-88)){ y += 34; if(y > H-44) break; x.fillText(l, 44, y); }
+  return c;
+}
+function plaqueCanvas(text){
+  const [c,x] = cnvS(512,72);
+  x.fillStyle = '#ebe1c9'; x.fillRect(0,0,512,72);
+  x.strokeStyle = '#a88a4f'; x.lineWidth = 3; x.strokeRect(4,4,504,64);
+  x.fillStyle = '#26302b'; x.font = '700 28px "PT Serif", serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  let t = text; while(x.measureText(t).width > 470 && t.length > 4) t = t.slice(0,-2);
+  if(t !== text) t = t.trim() + '…';
+  x.fillText(t, 256, 38); return c;
+}
+function signCanvas(num, name){
+  const [c,x] = cnvS(640,140);
+  x.fillStyle = '#14231d'; x.fillRect(0,0,640,140);
+  x.strokeStyle = '#c9a45c'; x.lineWidth = 3; x.strokeRect(6,6,628,128);
+  x.beginPath(); x.arc(70,70,40,0,PI*2); x.stroke();
+  x.fillStyle = '#e6cd94'; x.font = '700 40px "PT Serif", serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(num), 70, 72);
+  x.textAlign = 'left'; x.fillStyle = '#f4ebd8'; x.font = '700 32px "PT Serif", serif';
+  const ls = wrap(x, name, 500); if(ls.length === 1) x.fillText(ls[0], 128, 72); else { x.font = '700 28px "PT Serif", serif'; x.fillText(ls[0],128,52); x.fillText(ls.slice(1).join(' '),128,92); }
+  return c;
+}
+function screenCanvas(title, sub, icon){
+  const [c,x] = cnvS(512,336);
+  const g = x.createLinearGradient(0,0,512,336); g.addColorStop(0,'#0f2a33'); g.addColorStop(1,'#123d36'); x.fillStyle = g; x.fillRect(0,0,512,336);
+  x.strokeStyle = 'rgba(120,220,210,.35)'; x.lineWidth = 2; for(let i=0;i<8;i++){ x.beginPath(); x.arc(420,90,20+i*16,0,PI*2); x.stroke(); }
+  x.fillStyle = '#9fe6dc'; x.font = '700 64px "PT Sans", sans-serif'; x.fillText(icon, 36, 100);
+  x.fillStyle = '#f4ebd8'; x.font = '700 40px "PT Serif", serif'; let y = 170; for(const l of wrap(x,title,440)){ x.fillText(l,36,y); y += 44; }
+  x.fillStyle = '#9fe6dc'; x.font = '400 24px "PT Sans", sans-serif'; x.fillText(sub, 36, Math.min(y+10, 312));
+  return c;
+}
+function coverCanvas(b){
+  const [c,x] = cnvS(360,500);
+  x.fillStyle = b.color; x.fillRect(0,0,360,500); noise(x,360,500,.08);
+  x.strokeStyle = '#d8b46a'; x.lineWidth = 3; x.strokeRect(18,18,324,464);
+  x.fillStyle = '#e6cd94'; x.textAlign = 'center';
+  x.font = '700 22px "PT Sans", sans-serif'; x.fillText(b.author.toUpperCase(), 180, 80);
+  x.font = '700 40px "PT Serif", serif'; let y = 210; for(const l of wrap(x, b.title, 280)){ x.fillText(l,180,y); y += 46; }
+  x.font = '400 20px "PT Sans", sans-serif'; x.fillText(b.year, 180, 440);
+  return c;
+}
+function spinesCanvas(){
+  const [c,x] = cnv(512,512);
+  x.fillStyle = '#2b1a10'; x.fillRect(0,0,512,512);
+  const cols = ['#6d1f1c','#1c3557','#1d4a3c','#7a5a2a','#4a2a4a','#8a3a22','#2a2a2a','#5a6a3a','#a88a4f'];
+  for(let r=0;r<4;r++){ let xx = 6; const top = r*128 + 14, hmax = 104; while(xx < 500){ const w = 12 + Math.random()*16, h = hmax - Math.random()*26; x.fillStyle = cols[Math.floor(Math.random()*cols.length)]; x.fillRect(xx, top + hmax - h, w, h); x.fillStyle = 'rgba(230,205,148,.55)'; x.fillRect(xx+2, top+hmax-h+10, w-4, 2); x.fillRect(xx+2, top+hmax-16, w-4, 2); xx += w + 1.5; } x.fillStyle = '#5b3520'; x.fillRect(0, r*128+118, 512, 10); }
+  return c;
+}
+function boardCanvas(){
+  const [c,x] = cnv(1024,540);
+  x.fillStyle = '#a77d4f'; x.fillRect(0,0,1024,540); noise(x,1024,540,.18);
+  x.strokeStyle = '#4a2c18'; x.lineWidth = 18; x.strokeRect(9,9,1006,522);
+  x.fillStyle = '#1d4a3c'; x.fillRect(60,46,904,92);
+  x.fillStyle = '#f4ebd8'; x.font = '700 46px "PT Serif", serif'; x.textAlign = 'center'; x.fillText('Оқушылар жобалары мен пікірлер', 512, 108);
+  const notes = [['#f4e7a1','Жоба қосу'],['#bfe0d4','Пікір жазу'],['#f2c9b8','Қонақтар кітабы'],['#e9dfc8','Басыңыз']];
+  notes.forEach((n,i) => { const nx = 110 + i*215, ny = 200 + (i%2)*40; x.save(); x.translate(nx+80, ny+100); x.rotate((i%2?1:-1)*0.05); x.fillStyle = n[0]; x.fillRect(-80,-100,170,190); x.fillStyle = '#b8322a'; x.beginPath(); x.arc(5,-86,9,0,PI*2); x.fill(); x.fillStyle = '#2b2620'; x.font = '700 26px "PT Sans", sans-serif'; x.fillText(n[1], 5, 0); x.restore(); });
+  return c;
+}
+
+/* ---------------- Materials ---------------- */
+const M = {};
+function initMaterials(){
+  const wc = wallCanvas();
+  M.wallCanvas = wc;
+  M.lintel = new THREE.MeshLambertMaterial({color:0x244a3e});
+  M.gold = new THREE.MeshLambertMaterial({color:0xb8924f, emissive:0x2a1c06});
+  M.wood = new THREE.MeshLambertMaterial({color:0x6a4026});
+  M.dark = new THREE.MeshLambertMaterial({color:0x3a2416});
+  M.green = new THREE.MeshLambertMaterial({color:0x1f4c3e});
+  M.cloth = new THREE.MeshLambertMaterial({color:0x2b5a4a});
+  M.black = new THREE.MeshLambertMaterial({color:0x151515});
+  M.cream = new THREE.MeshLambertMaterial({color:0xe6dcc6});
+  M.marble = new THREE.MeshLambertMaterial({color:0x2d3a34});
+  M.glass = new THREE.MeshPhongMaterial({color:0xcfe8e2, transparent:true, opacity:0.16, shininess:90, depthWrite:false});
+  M.red = new THREE.MeshLambertMaterial({color:0xa3221d, side:THREE.DoubleSide});
+  M.leaf = new THREE.MeshLambertMaterial({color:0x2f6a3a});
+  M.pot = new THREE.MeshLambertMaterial({color:0x8a6a3a});
+  M.ceil = new THREE.MeshLambertMaterial({color:0xd6ccb8});
+  M.lamp = new THREE.MeshBasicMaterial({color:0xfff1d0});
+  M.glow = new THREE.MeshBasicMaterial({color:0x7fe0d0, transparent:true, opacity:.75});
+  M.brass = new THREE.MeshLambertMaterial({color:0xc9a24a, emissive:0x3a2a08});
+  M.leather = new THREE.MeshLambertMaterial({color:0x5a2a1a});
+  M.parquet = (sx,sz) => new THREE.MeshLambertMaterial({map:ctex(parquetCanvas(), sx/2.5, sz/2.5)});
+}
+const wallMats = {};
+function wallMat(L){ const k = Math.round(L*2)/2; if(wallMats[k]) return wallMats[k]; const t = ctex(M.wallCanvas, Math.max(1, Math.round(k/2.4)), 1); return wallMats[k] = new THREE.MeshLambertMaterial({map:t}); }
+
+/* ---------------- Builders ---------------- */
+function add(F, mesh){ F.group.add(mesh); return mesh; }
+function box(w,h,d,mat){ return new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat); }
+function solid(F,x,z,w,d){ F.boxes.push({x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2}); }
+function clickable(F, obj, click){ obj.userData.click = click; F.clickables.push(obj); return obj; }
+
+function wall(F,x0,z0,x1,z1,doors=[]){
+  const horiz = z0 === z1, T = 0.2, H = 4, DH = 2.9;
+  const len = horiz ? x1-x0 : z1-z0, base = horiz ? x0 : z0;
+  const ds = doors.map(d => ({a:d.c-(d.w||2)/2-base, b:d.c+(d.w||2)/2-base})).sort((p,q) => p.a-q.a);
+  const segs = []; let t = 0;
+  ds.forEach(d => { if(d.a > t) segs.push([t,d.a,0,H]); segs.push([d.a,d.b,DH,H]); t = d.b; });
+  if(t < len) segs.push([t,len,0,H]);
+  segs.forEach(([a,b,y0,y1]) => {
+    const L = b-a, h = y1-y0, full = y0 === 0, c = (a+b)/2;
+    const m = box(horiz ? L : T, h, horiz ? T : L, full ? wallMat(L) : M.lintel);
+    m.position.set(horiz ? x0+c : x0, y0+h/2, horiz ? z0 : z0+c);
+    add(F, m); F.walls.push(m);
+    if(full) F.boxes.push(horiz ? {x0:x0+a, x1:x0+b, z0:z0-T/2, z1:z0+T/2} : {x0:x0-T/2, x1:x0+T/2, z0:z0+a, z1:z0+b});
+    else { // door trim
+      const trim = box(horiz ? L+0.16 : T+0.04, 0.1, horiz ? T+0.04 : L+0.16, M.gold);
+      trim.position.set(m.position.x, DH-0.03, m.position.z); add(F, trim);
+    }
+  });
+}
+// position on a wall of room R: side N/S/W/E, c = absolute coordinate along the wall
+function P(R, side, c, off=0.14){
+  switch(side){
+    case 'N': return [c, R.z0+off, 0];
+    case 'S': return [c, R.z1-off, PI];
+    case 'W': return [R.x0+off, c, PI/2];
+    case 'E': return [R.x1-off, c, -PI/2];
+  }
+}
+function place(g, p, y){ g.position.set(p[0], y, p[1]); g.rotation.y = p[2]; }
+
+function frame(F, p, img, w, extra={}){
+  const im = images[img]; const asp = im ? im.width/im.height : 1.4; const h = w/asp;
+  const g = new THREE.Group(); place(g, p, extra.y || 1.8);
+  const b = box(w+0.16, h+0.16, 0.06, M.gold); g.add(b);
+  const inner = box(w+0.04, h+0.04, 0.065, M.dark); g.add(inner);
+  const pic = new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:itex(img)})); pic.position.z = 0.036; g.add(pic);
+  if(!extra.nolabel){ const lab = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(1.5, w*0.9), Math.min(1.5,w*0.9)*72/512), new THREE.MeshBasicMaterial({map:ctex(plaqueCanvas(extra.label || PH[img]?.t || ''))})); lab.position.set(0, -h/2-0.24, 0.02); g.add(lab); }
+  add(F, g);
+  const info = extra.info || {kicker:extra.kicker || 'Музей фотосы', title:PH[img]?.t, text:PH[img]?.d, img, credit:PH[img]?.c};
+  clickable(F, g, {type:'info', info});
+  return g;
+}
+function panel(F, p, data, extra={}){
+  const w = extra.w || 1.3, h = extra.h || 1.8;
+  const g = new THREE.Group(); place(g, p, extra.y || 1.75);
+  g.add(box(w+0.06, h+0.06, 0.04, M.gold));
+  const pl = new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:ctex(extra.canvas || panelCanvas(data, w, h))})); pl.position.z = 0.025; g.add(pl);
+  add(F, g);
+  clickable(F, g, extra.click || {type:'info', info:{kicker:(data.kicker || data.year || ''), title:data.title, text:String(data.body || '').replace(/\n/g,'\n\n'), img:data.img}});
+  return g;
+}
+function sign(F, x, z, ry, num, name){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2, 0.44), new THREE.MeshBasicMaterial({map:ctex(signCanvas(num, name))}));
+  m.position.set(x, 3.42, z); m.rotation.y = ry; add(F, m);
+}
+function plant(F, x, z){
+  const g = new THREE.Group(); g.position.set(x,0,z);
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.22,0.55,16), M.pot); pot.position.y = 0.275; g.add(pot);
+  for(let i=0;i<5;i++){ const s = new THREE.Mesh(new THREE.SphereGeometry(0.3+Math.random()*0.12, 10, 8), M.leaf); s.position.set((Math.random()-.5)*0.4, 0.85+i*0.18, (Math.random()-.5)*0.4); g.add(s); }
+  add(F, g); solid(F, x, z, 0.6, 0.6);
+}
+function chair(F, x, z, ry, mat=M.leather){
+  const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry;
+  const seat = box(0.48,0.08,0.48,mat); seat.position.y = 0.46; g.add(seat);
+  const back = box(0.48,0.5,0.06,M.wood); back.position.set(0,0.75,0.22); g.add(back);
+  for(const [a,b] of [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]]){ const l = box(0.05,0.46,0.05,M.wood); l.position.set(a,0.23,b); g.add(l); }
+  add(F, g); return g;
+}
+function table(F, x, z, w, d, top=M.wood, h=0.76){
+  const g = new THREE.Group(); g.position.set(x,0,z);
+  const t = box(w, 0.06, d, top); t.position.y = h; g.add(t);
+  for(const [a,b] of [[-1,-1],[1,-1],[-1,1],[1,1]]){ const l = box(0.07,h,0.07,M.wood); l.position.set(a*(w/2-0.1), h/2, b*(d/2-0.1)); g.add(l); }
+  add(F, g); solid(F, x, z, w+0.1, d+0.1); return g;
+}
+function vitrine(F, x, z, w, d, fill, click){
+  const g = new THREE.Group(); g.position.set(x,0,z);
+  const base = box(w, 0.85, d, M.wood); base.position.y = 0.425; g.add(base);
+  const top = box(w, 0.04, d, M.cloth); top.position.y = 0.87; g.add(top);
+  const glass = box(w-0.02, 0.8, d-0.02, M.glass); glass.position.y = 1.29; g.add(glass);
+  const cap = box(w, 0.04, d, M.gold); cap.position.y = 1.71; g.add(cap);
+  if(fill) fill(g);
+  add(F, g); solid(F, x, z, w+0.1, d+0.1); clickable(F, g, click); return g;
+}
+function kiosk(F, x, z, ry, title, sub, icon, click){
+  const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry;
+  const ped = box(0.55,1.0,0.35,M.marble); ped.position.y = 0.5; g.add(ped);
+  const frameB = box(1.02,0.7,0.06,M.black); frameB.position.set(0,1.32,0.02); frameB.rotation.x = -0.32; g.add(frameB);
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.94,0.62), new THREE.MeshBasicMaterial({map:ctex(screenCanvas(title, sub, icon))}));
+  scr.position.set(0,1.32,0.056); scr.rotation.x = -0.32; g.add(scr);
+  add(F, g); solid(F, x, z, 0.8, 0.8); clickable(F, g, click); return g;
+}
+function shelf(F, x, z, ry, w=2.4){
+  const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry;
+  const body = box(w, 2.5, 0.42, M.dark); body.position.y = 1.25; g.add(body);
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(w-0.12, 2.36), new THREE.MeshLambertMaterial({map:ctex(spinesCanvas())})); front.position.set(0,1.25,0.215); g.add(front);
+  add(F, g);
+  const horizontal = Math.abs(Math.sin(ry)) < 0.5; solid(F, x, z, horizontal ? w : 0.5, horizontal ? 0.5 : w);
+  return g;
+}
+function stairs(F, up){
+  const g = new THREE.Group();
+  for(let i=0;i<9;i++){ const s = box(1.7, 0.2*(i+1), 0.32, i%2 ? M.wood : M.dark); s.position.set(4.05, 0.1*(i+1), 9.0 + i*0.32); g.add(s); }
+  const rail = box(0.06, 0.06, 3.1, M.gold); rail.position.set(3.2, 1.6, 10.4); rail.rotation.x = -Math.atan(1.8/2.9); g.add(rail);
+  for(let i=0;i<4;i++){ const post = box(0.05, 0.9, 0.05, M.gold); post.position.set(3.2, 0.2*(i*2.3+1)+0.45, 9.1+i*0.8); g.add(post); }
+  const st = new THREE.Mesh(new THREE.PlaneGeometry(1.5,0.5), new THREE.MeshBasicMaterial({map:ctex(signCanvas(up ? '↑' : '↓', up ? '2-қабатқа көтерілу' : '1-қабатқа түсу'))}));
+  st.position.set(3.05, 2.2, 8.85); st.rotation.y = -0.5; g.add(st);
+  add(F, g); solid(F, 4.05, 10.45, 1.9, 3.1);
+  clickable(F, g, {type:'floor', to: up ? 2 : 1});
+}
+function ceiling(F){
+  const c = new THREE.Mesh(new THREE.PlaneGeometry(30, 26), M.ceil); c.rotation.x = PI/2; c.position.set(0, 4, -1); add(F, c);
+}
+function roomLight(F, R){
+  const cx = (R.x0+R.x1)/2, cz = (R.z0+R.z1)/2;
+  const l = new THREE.PointLight(0xffe6c4, 0.85, 16, 1.3); l.position.set(cx, 3.5, cz); add(F, l);
+  const n = Math.max(1, Math.round((R.x1-R.x0)*(R.z1-R.z0)/60));
+  for(let i=0;i<n;i++){ const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,0.04,20), M.lamp); lamp.position.set(cx + (n>1 ? ((i/(n-1))-.5)*(R.x1-R.x0)*0.5 : 0), 3.97, cz + (n>1 ? ((i%2)-.5)*(R.z1-R.z0)*0.3 : 0)); add(F, lamp); }
+}
+function floorPlane(F, x0,x1,z0,z1, mat, y=0){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(x1-x0, z1-z0), mat); m.rotation.x = -PI/2; m.position.set((x0+x1)/2, y, (z0+z1)/2); m.userData.floor = true; add(F, m); F.floors.push(m); return m;
+}
+
+/* ---------------- Slideshow texture ---------------- */
+const [slideC, slideX] = cnv(1024, 576);
+const slideTex = new THREE.CanvasTexture(slideC);
+let slideI = 0;
+function drawSlide(){
+  const n = SLIDES[slideI % SLIDES.length], im = images[n];
+  slideX.fillStyle = '#000'; slideX.fillRect(0,0,1024,576);
+  if(im){ const s = Math.max(1024/im.width, 576/im.height); const w = im.width*s, h = im.height*s; slideX.drawImage(im, (1024-w)/2, (576-h)/2, w, h); }
+  const g = slideX.createLinearGradient(0,430,0,576); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.85)'); slideX.fillStyle = g; slideX.fillRect(0,430,1024,146);
+  slideX.fillStyle = '#e6cd94'; slideX.font = '700 20px "PT Sans", sans-serif'; slideX.fillText('ҚОНАЕВ МУЗЕЙІ · БЕЙНЕЖОБА', 36, 516);
+  slideX.fillStyle = '#fff'; slideX.font = '700 38px "PT Serif", serif'; slideX.fillText(PH[n].t, 36, 556);
+  slideTex.needsUpdate = true;
+}
+function screen(F, p, w, y){
+  const g = new THREE.Group(); place(g, p, y);
+  g.add(box(w+0.12, w*9/16+0.12, 0.08, M.black));
+  const s = new THREE.Mesh(new THREE.PlaneGeometry(w, w*9/16), new THREE.MeshBasicMaterial({map:slideTex})); s.position.z = 0.045; g.add(s);
+  add(F, g); clickable(F, g, {type:'gallery'}); return g;
+}
+
+/* ---------------- Extra exhibits ---------------- */
+function blueprintCanvas(){
+  const [c,x] = cnvS(512, 350);
+  x.fillStyle = '#123a5a'; x.fillRect(0,0,512,350);
+  x.strokeStyle = 'rgba(160,200,235,.18)'; x.lineWidth = 1; for(let i=0;i<512;i+=16){ x.beginPath(); x.moveTo(i,0); x.lineTo(i,350); x.stroke(); } for(let j=0;j<350;j+=16){ x.beginPath(); x.moveTo(0,j); x.lineTo(512,j); x.stroke(); }
+  x.strokeStyle = '#d8ecff'; x.fillStyle = '#d8ecff'; x.lineWidth = 2; x.font = '700 15px "PT Sans", sans-serif';
+  x.fillText('КЕН ӨНДІРІСІНІҢ ЖАЛПЫ СХЕМАСЫ', 20, 28);
+  x.beginPath(); x.moveTo(20,120); x.lineTo(120,120); x.lineTo(170,190); x.lineTo(250,190); x.lineTo(300,120); x.lineTo(492,120); x.stroke();
+  x.setLineDash([5,4]); x.beginPath(); x.moveTo(170,190); x.lineTo(150,250); x.lineTo(270,250); x.lineTo(250,190); x.stroke(); x.setLineDash([]);
+  x.font = '400 13px "PT Sans", sans-serif';
+  x.fillText('1. Ашық карьер', 150, 212); x.fillText('кен денесі', 175, 270);
+  const boxAt = (bx, by, t) => { x.strokeRect(bx, by, 100, 44); x.fillText(t, bx+8, by+27); };
+  boxAt(330, 160, '2. Байыту'); boxAt(330, 240, '3. Металлургия');
+  x.beginPath(); x.moveTo(270,170); x.lineTo(325,180); x.stroke(); x.beginPath(); x.moveTo(380,204); x.lineTo(380,236); x.stroke();
+  x.fillText('→ мыс, қорғасын, мырыш', 330, 310);
+  x.fillText('Оқу схемасы · масштабсыз', 20, 336);
+  return c;
+}
+function standPanel(F, x, z, ry, data){
+  const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry;
+  const base = box(1.0, 0.06, 0.5, M.marble); base.position.y = 0.03; g.add(base);
+  for(const sx of [-0.5,0.5]){ const leg = box(0.05, 2.5, 0.05, M.gold); leg.position.set(sx,1.25,0); g.add(leg); }
+  const w = 1.3, h = 1.8;
+  for(const side of [0, PI]){ const pl = new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:ctex(panelCanvas(data, w, h))})); pl.position.y = 1.55; pl.rotation.y = side; pl.position.z = side ? -0.01 : 0.01; g.add(pl); }
+  add(F, g);
+  const horizontal = Math.abs(Math.sin(ry)) < 0.5; solid(F, x, z, horizontal ? 1.3 : 0.5, horizontal ? 0.5 : 1.3);
+  clickable(F, g, {type:'info', info:{kicker:data.kicker, title:data.title, text:data.body.replace(/\n/g,'\n\n')}});
+}
+function qrMatrix(text){
+  try{ if(typeof qrcode !== 'function') return null; const q = qrcode(0, 'M'); q.addData(text); q.make(); const n = q.getModuleCount(); const m = []; for(let r=0;r<n;r++){ m.push([]); for(let c=0;c<n;c++) m[r].push(q.isDark(r,c)); } return m; }catch(_){ return null; }
+}
+function drawQR(x, text, px, py, size){
+  const m = qrMatrix(text);
+  x.fillStyle = '#fff'; x.fillRect(px, py, size, size);
+  if(!m){ x.fillStyle = '#26302b'; x.font = '700 14px "PT Sans", sans-serif'; x.textAlign = 'center'; x.fillText('QR', px+size/2, py+size/2); x.textAlign = 'left'; return false; }
+  const n = m.length, q = 2, cell = size/(n + q*2);
+  x.fillStyle = '#111';
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(m[r][c]) x.fillRect(px + (c+q)*cell, py + (r+q)*cell, Math.ceil(cell), Math.ceil(cell));
+  return true;
+}
+function qrStand(F, p){
+  const w = 1.3, h = 1.8;
+  const [c,x] = cnvS(512, Math.round(512*h/w));
+  x.fillStyle = '#1d4a3c'; x.fillRect(0,0,512,709); x.strokeStyle = '#c9a45c'; x.lineWidth = 3; x.strokeRect(18,18,476,673);
+  x.fillStyle = '#c9a45c'; x.font = '700 21px "PT Sans", sans-serif'; x.fillText('QR-КОДТАР', 44, 62);
+  x.fillStyle = '#f4ebd8'; x.font = '700 34px "PT Serif", serif'; x.fillText('Дереккөздер', 44, 106);
+  SOURCES.slice(0,2).forEach((s,i) => { const y = 140 + i*270; drawQR(x, s.u, 44, y, 200); x.fillStyle = '#f4ebd8'; x.font = '700 22px "PT Serif", serif'; wrap(x, s.t, 200).forEach((l,k) => x.fillText(l, 262, y+30+k*28)); x.fillStyle = '#c9e4da'; x.font = '400 18px "PT Sans", sans-serif'; x.fillText(s.u.replace('https://',''), 262, y+120); });
+  x.fillStyle = '#9fb2a8'; x.font = '400 18px "PT Sans", sans-serif'; x.fillText('Телефон камерасымен сканерлеңіз', 44, 680);
+  const g = new THREE.Group(); place(g, p, 1.75);
+  g.add(box(w+0.06, h+0.06, 0.04, M.gold));
+  const pl = new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:ctex(c)})); pl.position.z = 0.025; g.add(pl);
+  add(F, g); clickable(F, g, {type:'sources'});
+}
+
+/* ---------------- Hall sheet ---------------- */
+function curHallId(){ if(!curRoom) return 0; return curRoom.f === 1 ? curRoom.id : 0; }
+function openHall(id){
+  const H = HALLS[id];
+  openInfo({kicker:(id ? id + '-зал' : 'Музей'), title:H.title, text:H.kk, actions:[['♪ Аудиогид', () => openAudio(id)], ...(id ? [['? Викторина', () => openQuiz(id)]] : [['Жоба туралы', openProject]]), ['Дереккөздер', openSources]]});
+}
+
+/* ---------------- Audio guide ---------------- */
+let audioHall = 0, audioLang = 'kk';
+const LANGS = {kk:{l:'Қазақша', code:'kk'}, ru:{l:'Русский', code:'ru'}, en:{l:'English', code:'en'}};
+function voicesFor(code){ try{ return (speechSynthesis.getVoices() || []).filter(v => (v.lang || '').toLowerCase().startsWith(code)); }catch(_){ return []; } }
+function openAudio(id){
+  audioHall = id in HALLS ? id : 0;
+  $('#auTitle').textContent = HALLS[audioHall].title;
+  $('#auLangs').innerHTML = Object.entries(LANGS).map(([k,v]) => `<button class="chip" data-lang="${k}" aria-pressed="${k === audioLang}">${v.l}</button>`).join('');
+  $('#auLangs').querySelectorAll('[data-lang]').forEach(b => b.onclick = () => { stopAudio(); audioLang = b.dataset.lang; openAudio(audioHall); });
+  $('#auHalls').innerHTML = Object.keys(HALLS).map(k => `<button class="chip" data-h="${k}" aria-pressed="${+k === audioHall}">${+k ? k + '. ' : ''}${esc(HALLS[k].title)}</button>`).join('');
+  $('#auHalls').querySelectorAll('[data-h]').forEach(b => b.onclick = () => { stopAudio(); openAudio(+b.dataset.h); });
+  $('#auText').textContent = HALLS[audioHall][audioLang];
+  const ok = 'speechSynthesis' in window;
+  const has = ok && voicesFor(LANGS[audioLang].code).length > 0;
+  $('#auNote').textContent = !ok ? 'Бұл браузер мәтінді дауыстап оқи алмайды. Мәтінді оқып шығыңыз.' : has ? '' : (audioLang === 'kk' ? 'Құрылғыңызда қазақ тіліндегі дауыс табылмауы мүмкін. Дыбыс шықпаса, «Русский» немесе «English» нұсқасын таңдаңыз не мәтінді оқыңыз.' : 'Бұл тілге арналған дауыс табылмауы мүмкін; мәтін төменде берілген.');
+  $('#auPlay').disabled = !ok;
+  openSheet('sAudio');
+}
+function playAudio(){
+  try{
+    stopAudio();
+    const u = new SpeechSynthesisUtterance(HALLS[audioHall][audioLang]);
+    const code = LANGS[audioLang].code; const vs = voicesFor(code);
+    u.lang = code === 'kk' ? 'kk-KZ' : code === 'ru' ? 'ru-RU' : 'en-US';
+    if(vs.length) u.voice = vs[0];
+    u.rate = 0.95;
+    u.onend = () => { $('#auPlay').textContent = '▶ Тыңдау'; };
+    speechSynthesis.speak(u); $('#auPlay').textContent = '■ Тоқтату';
+  }catch(_){ $('#auNote').textContent = 'Дыбысты ойнату мүмкін болмады. Мәтінді оқыңыз.'; }
+}
+function stopAudio(){ try{ if('speechSynthesis' in window) speechSynthesis.cancel(); }catch(_){} const b = $('#auPlay'); if(b) b.textContent = '▶ Тыңдау'; }
+
+/* ---------------- Quiz ---------------- */
+let quiz = null;
+function openQuiz(id){
+  const all = id === 'all';
+  let qs = all ? [1,2,3,4,5].flatMap(h => QUIZ[h].slice(0,2).map(q => [...q, h])) : (QUIZ[id] || []).map(q => [...q, id]);
+  quiz = {id, qs, i:0, score:0, answered:false};
+  $('#qzTitle').textContent = all ? 'Қорытынды викторина' : `${id}-зал: ${HALLS[id].title}`;
+  renderQuiz(); openSheet('sQuiz');
+}
+function renderQuiz(){
+  const Q = quiz, box_ = $('#qzBody');
+  if(Q.i >= Q.qs.length){
+    const n = Q.qs.length, pct = Math.round(Q.score/n*100);
+    const msg = pct === 100 ? 'Керемет! Барлық жауап дұрыс.' : pct >= 60 ? 'Жақсы нәтиже! Қателескен сұрақтардың залын қайта аралап шығыңыз.' : 'Залдарды тағы бір рет аралап, стендтерді оқып шығыңыз.';
+    box_.innerHTML = `<div class="qz-done"><div class="qz-score">${Q.score} / ${n}</div><p>${msg}</p><div class="acts"><button class="btn primary" id="qzAgain">Қайта бастау</button>${Q.id !== 'all' ? '<button class="btn" id="qzAll">Қорытынды викторина</button>' : ''}</div></div>`;
+    $('#qzAgain').onclick = () => openQuiz(Q.id); const a = $('#qzAll'); if(a) a.onclick = () => openQuiz('all');
+    $('#qzProg').style.width = '100%'; return;
+  }
+  const [q, opts, ok, hall] = Q.qs[Q.i];
+  $('#qzProg').style.width = (Q.i/Q.qs.length*100) + '%';
+  box_.innerHTML = `<div class="kicker">Сұрақ ${Q.i+1} / ${Q.qs.length}${Q.id === 'all' ? ' · ' + hall + '-зал' : ''}</div><h3 class="qz-q">${esc(q)}</h3><div class="qz-opts">${opts.map((o,k) => `<button class="qz-opt" data-k="${k}">${esc(o)}</button>`).join('')}</div><p class="qz-fb" id="qzFb"></p><div class="acts"><button class="btn primary" id="qzNext" hidden>Келесі сұрақ</button></div>`;
+  box_.querySelectorAll('.qz-opt').forEach(b => b.onclick = () => {
+    if(Q.answered) return; Q.answered = true; const k = +b.dataset.k;
+    box_.querySelectorAll('.qz-opt').forEach(x => { x.disabled = true; if(+x.dataset.k === ok) x.classList.add('ok'); });
+    if(k === ok){ Q.score++; $('#qzFb').textContent = 'Дұрыс!'; } else { b.classList.add('bad'); $('#qzFb').textContent = 'Дұрыс жауап: ' + opts[ok]; }
+    const nx = $('#qzNext'); nx.hidden = false; nx.textContent = Q.i === Q.qs.length-1 ? 'Нәтижені көру' : 'Келесі сұрақ'; nx.focus();
+    nx.onclick = () => { Q.i++; Q.answered = false; renderQuiz(); };
+  });
+}
+
+/* ---------------- Sources & project ---------------- */
+function openSources(){
+  const g = $('#srcGrid');
+  g.innerHTML = SOURCES.map((s,i) => `<div class="src"><canvas width="320" height="320" data-i="${i}" aria-label="QR: ${esc(s.u)}"></canvas><div><b>${esc(s.t)}</b><p>${esc(s.d)}</p><a href="${esc(s.u)}" target="_blank" rel="noopener">${esc(s.u.replace('https://',''))}</a></div></div>`).join('');
+  let drawn = true;
+  g.querySelectorAll('canvas').forEach(cv => { const x = cv.getContext('2d'); if(!drawQR(x, SOURCES[+cv.dataset.i].u, 0, 0, 320)) drawn = false; });
+  $('#srcNote').textContent = (drawn ? '' : 'QR-кодты салу мүмкін болмады, сілтемелерді пайдаланыңыз. ') + 'Сілтемелер ғылыми жобаның әдебиеттер тізімінен алынды; пайдаланар алдында нақты беттерін тексеріңіз.';
+  $('#bib').innerHTML = BIBLIO.map(b => `<li>${esc(b)}</li>`).join('');
+  openSheet('sSrc');
+}
+function openProject(){ openSheet('sProj'); }
+
+/* ---------------- Build floor 1: central space + five halls ---------------- */
+function hallIntro(F, p, id, extra={}){
+  const H = HALLS[id];
+  return panel(F, p, {kicker:(id ? id + '-зал' : 'Орталық кеңістік'), title:H.title, body:H.short}, Object.assign({click:{type:'hall', id}}, extra));
+}
+function buildFloor1(){
+  const F = FL[1];
+  floorPlane(F, -15, 15, -14, 12, M.parquet(30,26));
+  floorPlane(F, -5, 5, -6, 12, new THREE.MeshLambertMaterial({map:ctex(stoneCanvas(), 10/4, 18/4)}), 0.004);
+  ceiling(F);
+  wall(F,-15,-14,15,-14); wall(F,-15,12,15,12,[{c:0,w:2.4}]); wall(F,-15,-14,-15,12); wall(F,15,-14,15,12);
+  wall(F,-5,-6,5,-6,[{c:0}]);
+  wall(F,-15,-1,-5,-1,[{c:-10}]); wall(F,5,-1,15,-1,[{c:10}]);
+  wall(F,-5,-14,-5,12,[{c:-10},{c:-3.5},{c:5}]);
+  wall(F,5,-14,5,12,[{c:-10},{c:-3.5},{c:5}]);
+  ROOMS.filter(r => r.f === 1).forEach(r => roomLight(F, r));
+
+  /* 0 — Central space */
+  const C = RM(0);
+  const ped = new THREE.Group(); ped.position.set(0,0,2);
+  const pb = box(1.3, 0.9, 1.0, M.marble); pb.position.y = 0.45; ped.add(pb);
+  const pt = box(1.4, 0.06, 1.1, M.gold); pt.position.y = 0.92; ped.add(pt);
+  const pim = images.portrait2; const pw = 1.1, ph = pim ? pw*pim.height/pim.width : pw*1.9;
+  const pf = box(pw+0.2, ph+0.2, 0.1, M.gold); pf.position.y = 0.95+ph/2+0.12; ped.add(pf);
+  const pp = new THREE.Mesh(new THREE.PlaneGeometry(pw, ph), new THREE.MeshBasicMaterial({map:itex('portrait2')})); pp.position.set(0, pf.position.y, 0.051); ped.add(pp);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(pw+0.1, ph+0.1), new THREE.MeshBasicMaterial({map:ctex(panelCanvas({kicker:'Д.А. Қонаев',title:'«Менің өмірбаяным…»',body:QUOTE}, pw+0.1, ph+0.1))}));
+  back.position.set(0, pf.position.y, -0.051); back.rotation.y = PI; ped.add(back);
+  const nm = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.3), new THREE.MeshBasicMaterial({map:ctex(signCanvas('Д','Қонаев · 1912–1993'))})); nm.position.set(0, 0.55, 0.505); ped.add(nm);
+  add(F, ped); solid(F, 0, 2, 1.5, 1.2);
+  clickable(F, ped, {type:'info', info:{kicker:'Орталық кеңістік', title:'Дінмұхамед Ахметұлы Қонаев', img:'portrait2', credit:'Фото: RFE/RL', text:'Дінмұхамед Ахметұлы Қонаев (1912–1993) — тау-кен инженері, ғалым және ұзақ жылдар бойы республиканың басшылық қызметтерінде болған мемлекет қайраткері.\n\nОның өмір жолы арқылы ХХ ғасырдағы Қазақстанның өнеркәсіптік дамуын, ғылым мен білімнің жағдайын, қоғамдық-саяси өзгерістерді және кеңестік басқару жүйесінің ерекшеліктерін зерттеуге болады.\n\nОрталық кеңістіктен бес тақырыптық залға өтесіз.', actions:[['Өмір жолы', () => openKiosk('tl')], ['Аудиогид', () => openAudio(0)]]}});
+  screen(F, P(C,'N',-3.1), 2.6, 2.05);
+  hallIntro(F, P(C,'N',3.1), 0);
+  panel(F, P(C,'W',0.8), {kicker:'Ғылыми жоба', title:'Зерттеудің мақсаты', body:'Д.А. Қонаевтың өмір жолы мен қызметін тарихи деректер негізінде зерттеп, оның мұрасын таныстыратын бес залдан тұратын 3D виртуалды музей жасау.'}, {click:{type:'project'}});
+  panel(F, P(C,'E',0.8), {kicker:'Зерттеу болжамы', title:'Неге 3D музей?', body:'Тарихи тұлға туралы мәліметтер сенімді дереккөздерге сүйеніп, интерактивті 3D музей түрінде ұсынылса, оқушылардың тақырыпқа қызығушылығы артып, ақпаратты түсінуі жеңілдеуі мүмкін.'}, {click:{type:'project'}});
+  panel(F, P(C,'W',9), {kicker:'Музей жоспары', title:'Бес зал', body:'1 Өмір жолы · 2 Инженер және ғалым · 3 Қазақстанның дамуы · 4 Тарих және қоғам · 5 Мұра және жады. Баспалдақ 2-қабатқа апарады.'}, {click:{type:'plan'}});
+  panel(F, P(C,'S',-3.2), {kicker:'Жоба мақсаты', title:'Мұраны цифрлық форматта сақтау', body:'Дінмұхамед Қонаевтың өмірі мен еңбектерін таныстыру, тарихи тұлғаның мұрасын сақтау және оқушыларға интерактивті, заманауи музей арқылы танымдық білім беру.'}, {click:{type:'project'}});
+  stairs(F, true);
+  plant(F,-4.3,-5.3); plant(F,4.3,-5.3); plant(F,-4.3,11.3); plant(F,-2,11.3); plant(F,2,11.3);
+  const ent = new THREE.Group(); ent.position.set(0,0,11.95);
+  for(const sx of [-0.6,0.6]){ const d = box(1.16, 2.86, 0.05, M.glass); d.position.set(sx,1.43,0); ent.add(d); }
+  const ef = box(2.5,0.1,0.12,M.gold); ef.position.set(0,2.9,0); ent.add(ef);
+  const out = new THREE.Mesh(new THREE.PlaneGeometry(2.4,2.9), new THREE.MeshBasicMaterial({color:0x7d94a8})); out.position.set(0,1.45,0.1); out.rotation.y = PI; ent.add(out);
+  const es = new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.32), new THREE.MeshBasicMaterial({map:ctex(signCanvas('⟵','Шығу'))})); es.position.set(0,3.4,-0.08); es.rotation.y = PI; ent.add(es);
+  add(F, ent); solid(F, 0, 12, 2.6, 0.4); clickable(F, ent, {type:'exit'});
+  sign(F, -4.88, 5, PI/2, 1, 'Өмір жолы');
+  sign(F, -4.88, -3.5, PI/2, 2, 'Инженер және ғалым');
+  sign(F, 0, -5.88, 0, 3, 'Қазақстанның дамуы');
+  sign(F, 4.88, -3.5, -PI/2, 4, 'Тарих және қоғам');
+  sign(F, 4.88, 5, -PI/2, 5, 'Мұра және жады');
+
+  /* 1 — Life journey */
+  const R1 = RM(1);
+  hallIntro(F, P(R1,'E',1.6), 1);
+  panel(F, P(R1,'W',0.7), {year:'1912', title:'Верный қаласында туды', body:'Дінмұхамед Ахметұлы Қонаев 1912 жылғы 12 қаңтарда Верный қаласында (қазіргі Алматы) дүниеге келді.'});
+  panel(F, P(R1,'W',2.4), {year:'1930', title:'Алматыдағы №14 мектеп', body:'1930 жылы Алматыдағы №14 орта мектепті бітірді. Білімін жалғастыру үшін Мәскеуге аттанды.'});
+  panel(F, P(R1,'W',4.4), {kicker:'1931–1936', title:'Мәскеуде жоғары білім алды', body:'Мәскеудегі Түсті металдар және алтын институтын 1936 жылы бітіріп, тау-кен инженері мамандығын алды.'});
+  frame(F, P(R1,'W',7.1), 'p12', 1.9);
+  frame(F, P(R1,'W',10.2), 'p08', 1.9);
+  panel(F, P(R1,'S',-13.2), {kicker:'Отбасы', title:'Жұбайы Зухра Шәріпқызы', body:'Қонаевтың жұбайы Зухра Шәріпқызы Қонаева 1990 жылы дүниеден өтті. Ол ұзақ жылдар бойы оның ең жақын серігі болды.'});
+  frame(F, P(R1,'S',-10.4), 'p07', 1.8);
+  panel(F, P(R1,'S',-7.4), {kicker:'Отбасы', title:'Інісі Асқар Қонаев', body:'Асқар Қонаев — ғалым, академик, 1974–1986 жылдары Қазақ КСР Ғылым академиясының президенті болды.'});
+  frame(F, P(R1,'E',8), 'p06', 1.55);
+  panel(F, P(R1,'E',10.6), {kicker:'1993', title:'Соңғы жылдары', body:'Өмірінің соңғы кезеңін Алматы облысы Алакөл ауданындағы Ақши ауылында өткізді. 1993 жылғы 22 тамызда сонда қайтыс болып, Алматыдағы Кеңсай зиратына жерленді.'});
+  vitrine(F, -11, 5.6, 1.7, 0.9, g => {
+    const chest = box(0.55,0.3,0.34, new THREE.MeshLambertMaterial({color:0x8a6236})); chest.position.set(-0.35,1.04,0); g.add(chest);
+    const lid = box(0.55,0.04,0.34, new THREE.MeshLambertMaterial({color:0x7a5430})); lid.position.set(-0.35,1.3,-0.12); lid.rotation.x = -0.9; g.add(lid);
+    const sam = new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.17,0.36,18), M.brass); sam.position.set(0.38,1.07,0); g.add(sam);
+    const sam2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.1,0.12,14), M.brass); sam2.position.set(0.38,1.31,0); g.add(sam2);
+    const tray = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,0.02,24), M.brass); tray.position.set(0.38,0.9,0); g.add(tray);
+  }, {type:'info', info:{kicker:'Витрина', title:PH.p12.t, text:PH.p12.d + '\n\nВитринадағы сандық пен самаурын — фотосуреттегі түпнұсқа заттардың 3D макеті.', img:'p12'}});
+  const carpet = new THREE.Mesh(new THREE.PlaneGeometry(3.0,3.8), new THREE.MeshLambertMaterial({map:ctex(carpetCanvas())})); carpet.rotation.x = -PI/2; carpet.position.set(-10, 0.006, 9.4); add(F, carpet);
+  kiosk(F, -7.2, 0.3, 0, 'Уақыт сызығы', 'Негізгі даталар · фотогалерея', '⧗', {type:'kiosk', tab:'tl'});
+  kiosk(F, -12.8, 0.3, 0, 'Фотогалерея', 'Музей фотосуреттері', '▣', {type:'gallery'});
+  sign(F, -10, -0.88, 0, 2, 'Инженер және ғалым');
+
+  /* 2 — Engineer and scientist */
+  const R2 = RM(2);
+  hallIntro(F, P(R2,'E',-12.6), 2);
+  panel(F, P(R2,'W',-12), {kicker:'Мамандығы', title:'Тау-кен инженері', body:'Еңбек жолын өндірістен бастауы оған кен орындарын игеру мен техникалық міндеттерді тәжірибе жүзінде түсінуге мүмкіндік берді. Индустрияландыру кезеңінде инженерлерге сұраныс зор болды.'});
+  panel(F, P(R2,'W',-9.6), {kicker:'Сызба · схема', title:'Кен өндірісі қалай жұмыс істейді', body:''}, {w:2.2, h:1.5, canvas:blueprintCanvas(), click:{type:'info', info:{kicker:'Схема', title:'Кен өндірісінің жалпы схемасы', text:'Бұл оқу схемасы: кен орнын барлау, кенді ашық немесе жерасты тәсілімен өндіру, байыту фабрикасы және металлургиялық зауыт. Қонаев ашық тәсілмен кен өндіру тақырыбында ғылыми еңбектер жазған.\n\nСхема мұражай үшін жеңілдетіліп салынды, нақты кеніштің сызбасы емес.'}}});
+  panel(F, P(R2,'W',-7.2), {kicker:'1936 жылдан', title:'Балқаш', body:'Балқаш мыс қорыту комбинатында бұрғылау станогының машинисі, цех бастығы, бас инженер, Қоңырат кенішінің директоры болып істеді.'});
+  panel(F, P(R2,'W',-5.0), {kicker:'1942 жылға дейін', title:'Риддер және Лениногорск', body:'Алтайдағы Риддер және Лениногорск кеніштерінде басшылық қызметтер атқарды.'});
+  panel(F, P(R2,'W',-2.8), {kicker:'1942–1952', title:'Үкімет құрамында', body:'Қазақ КСР Халық Комиссарлары Кеңесі, кейін Министрлер Кеңесі төрағасының орынбасары болды.'});
+  panel(F, P(R2,'N',-12.5), {kicker:'1952–1955', title:'Ғылым академиясының президенті', body:'1952 жылы Қазақ КСР Ғылым академиясының президенті болып сайланды. Академия табиғи ресурстарды зерттеу, өндірісті ғылыми негіздеу және ғылыми кадрларды дамыту бағыттарында жұмыс істеді.'});
+  frame(F, P(R2,'N',-10), 'p03', 1.7);
+  panel(F, P(R2,'N',-7.5), {kicker:'Ғылымға үлесі', title:'Бір адамның ғана еңбегі емес', body:'Ғылыми жетістіктерді түсіну үшін Қонаевтың қызметімен қатар сол кезеңде еңбек еткен ғалымдар мен ғылыми мекемелердің рөлін де көрсету керек.'});
+  panel(F, P(R2,'E',-6.8), {kicker:'Ғалым', title:'200-ге жуық ғылыми еңбек', body:'Ашық тәсілмен кен өндіру және тау-кен ісі бойынша еңбектердің авторы. Техника ғылымдарының докторы, академик.'});
+  (() => { const g = new THREE.Group(); g.position.set(-10,0,-7.6); g.rotation.y = 0.3;
+    for(const s of [-0.32,0.32]){ const r = box(0.06,0.04,2.4,M.black); r.position.set(s,0.02,0); g.add(r); }
+    for(let i=0;i<7;i++){ const t = box(0.9,0.04,0.12,M.wood); t.position.set(0,0.01,-1.05+i*0.35); g.add(t); }
+    const body = box(0.7,0.45,0.95,new THREE.MeshLambertMaterial({color:0x4a4f52})); body.position.y = 0.45; g.add(body);
+    const ore = new THREE.Mesh(new THREE.DodecahedronGeometry(0.33,0), new THREE.MeshLambertMaterial({color:0x8a6a4a})); ore.position.y = 0.72; ore.scale.set(1,0.5,1.3); g.add(ore);
+    for(const [a,b] of [[-.32,-.3],[.32,-.3],[-.32,.3],[.32,.3]]){ const w = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.06,14), M.black); w.rotation.z = PI/2; w.position.set(a,0.16,b); g.add(w); }
+    add(F, g); solid(F, -10, -7.6, 1.2, 1.4);
+    clickable(F, g, {type:'info', info:{kicker:'Макет', title:'Кен вагонеткасы', text:'Қонаевтың еңбек жолы кеніштерде басталды. Балқаш, Риддер және Лениногорск кеніштеріндегі жұмыс оны тәжірибелі тау-кен инженері етті. Вагонетка — сол кезеңнің символы ретінде жасалған 3D макет.'}});
+  })();
+  vitrine(F, -12.9, -6.6, 1.6, 0.8, g => {
+    const cols = [0x8a6a4a, 0xb87333, 0x6f6a60, 0xc9a24a];
+    cols.forEach((c,i) => { const o = new THREE.Mesh(new THREE.DodecahedronGeometry(0.11+0.03*(i%2),0), new THREE.MeshLambertMaterial({color:c})); o.position.set(-0.55+i*0.37, 0.98, 0); o.rotation.set(i,i*2,0); g.add(o); });
+  }, {type:'info', info:{kicker:'Витрина · макет', title:'Кен үлгілері', text:'Мыс, қорғасын-мырыш және басқа кендер — Балқаш пен Кенді Алтайдың басты байлығы. Үлгілер 3D макет түрінде берілген.\n\nНақты экспонаттардың суреттері мен шыққан жері табылса, осы витринаға қосылады.'}});
+  kiosk(F, -12.8, -1.75, PI, 'Өндіріс картасы', 'Балқаш · Риддер · Жезқазған', '⌖', {type:'kiosk', tab:'map'});
+  sign(F, -10, -1.12, PI, 1, 'Өмір жолы');
+  sign(F, -5.12, -10, -PI/2, 3, 'Қазақстанның дамуы');
+
+  /* 3 — Development of Kazakhstan */
+  const R3 = RM(3);
+  hallIntro(F, P(R3,'W',-7.4), 3);
+  panel(F, P(R3,'N',-3.2), {kicker:'Қала құрылысы', title:'Алматы бой көтерді', body:'Медеу спорт кешені (1972), «Қазақстан» қонақүйі, Ұлттық кітапхана ғимараты, Көктөбедегі телемұнара салынды.'});
+  frame(F, P(R3,'N',0), 'p11', 2.0);
+  panel(F, P(R3,'N',3.2), {kicker:'Өнеркәсіп', title:'Мұнай өңдеу және энергетика', body:'Павлодар (1978) және Шымкент (1985) мұнай өңдеу зауыттары іске қосылды. Өнеркәсіп пен энергетика республика экономикасының басты бағыттарына айналды.'});
+  panel(F, P(R3,'W',-12.6), {kicker:'Сандар', title:'Көмір: 28 → 132 млн т', body:'1955–1986 жылдары республикада көмір өндіру жылына 28 млн тоннадан 132 млн тоннаға дейін өсті.'});
+  panel(F, P(R3,'E',-12.6), {kicker:'Әкімшілік', title:'Жаңа облыстар', body:'1970 жылы Торғай, 1973 жылы Жезқазған облыстары құрылды.'});
+  panel(F, P(R3,'E',-7.4), {kicker:'Білім мен ғылым', title:'Ғылыми орталықтар', body:'Ғылым академиясының институттары кеңейіп, жоғары оқу орындары мен ғылыми кадрлар саны артты. Ұлттық кітапхананың жаңа ғимараты салынды.'});
+  panel(F, P(R3,'S',-3.2), {kicker:'Сол кезде · бүгін', title:'Алматы', body:'Сол кезде: Қазақ КСР-інің астанасы, жаңа ғимараттар мен Медеу салынды.\nБүгін: республикалық маңызы бар қала, ел астанасы 1997 жылы Ақмолаға көшті. Медеу бүгін де жұмыс істейді.'});
+  panel(F, P(R3,'S',3.2), {kicker:'Сол кезде · бүгін', title:'Қапшағай → Қонаев', body:'Сол кезде: Іле өзеніндегі ГЭС пен су қоймасы жанындағы қала.\nБүгін: 2022 жылдан Қонаев есімімен аталады және Алматы облысының орталығы болды.'});
+  (() => { const g = new THREE.Group(); g.position.set(0,0,-9.8);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.85,0.8,32), M.marble); base.position.y = 0.4; g.add(base);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8,0.03,8,48), M.glow); ring.rotation.x = PI/2; ring.position.y = 0.82; g.add(ring);
+    const sph = new THREE.Mesh(new THREE.SphereGeometry(0.55,24,16), new THREE.MeshBasicMaterial({color:0x5fd0c0, wireframe:true, transparent:true, opacity:.5})); sph.position.y = 1.55; g.add(sph);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(0.5,24,16), new THREE.MeshLambertMaterial({color:0x1d4a5a, emissive:0x0a2a30})); core.position.y = 1.55; g.add(core);
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.75,0.012,6,64), M.glow); ring2.position.y = 1.55; ring2.rotation.x = 1.2; g.add(ring2);
+    FL[1].anim.push(dt => { sph.rotation.y += dt*0.4; ring2.rotation.z += dt*0.7; });
+    add(F, g); solid(F, 0, -9.8, 1.8, 1.8);
+    clickable(F, g, {type:'kiosk', tab:'map'});
+  })();
+  sign(F, -4.88, -10, PI/2, 2, 'Инженер және ғалым');
+  sign(F, 4.88, -10, -PI/2, 4, 'Тарих және қоғам');
+
+  /* 4 — History and society */
+  const R4 = RM(4);
+  table(F, 10, -12.7, 2.2, 0.9, M.cloth, 0.78);
+  chair(F, 10, -13.35, PI, M.leather);
+  const lampG = new THREE.Group(); lampG.position.set(10.8,0.81,-12.9); lampG.add(new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.1,0.04,12),M.black)); const la = box(0.03,0.4,0.03,M.black); la.position.y=0.2; lampG.add(la); const lh = new THREE.Mesh(new THREE.ConeGeometry(0.12,0.16,14,1,true),M.black); lh.position.set(0,0.42,0.06); lh.rotation.x=0.6; lampG.add(lh); add(F, lampG);
+  for(let i=0;i<3;i++){ const phn = box(0.18,0.08,0.2,M.cream); phn.position.set(9.0+i*0.24,0.85,-12.85); add(F, phn); }
+  table(F, 10, -10.35, 1.1, 3.0, M.green, 0.76);
+  for(let i=0;i<3;i++){ chair(F, 9.25, -11.3+i*0.95, -PI/2); chair(F, 10.75, -11.3+i*0.95, PI/2); }
+  for(let i=0;i<4;i++){ const d = new THREE.Mesh(new THREE.PlaneGeometry(0.21,0.29), M.cream); d.rotation.x=-PI/2; d.position.set(9.8+(i%2)*0.4, 0.795, -11.4+i*0.6); add(F, d); }
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,2.6,8), M.gold); pole.position.set(13.8,1.3,-13.4); add(F, pole);
+  const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.7,1.1,6,6), M.red); flag.position.set(13.82,2.0,-13.04); flag.rotation.y = PI/2+0.4; add(F, flag);
+  const deskG = new THREE.Group(); add(F, deskG);
+  const deskHit = box(2.4,1.0,4.6,new THREE.MeshBasicMaterial({visible:false})); deskHit.position.set(10,0.5,-11.2); deskG.add(deskHit);
+  clickable(F, deskG, {type:'info', info:{kicker:'Кабинет реконструкциясы', title:'Бірінші хатшының кабинеті', img:'p05', text:'Жұмыс үстелі, мәжіліс үстелі, телефондар мен үстел шамы — Алматыдағы музейдегі кабинет үлгісімен жасалған. Түпнұсқа кабинетте Қонаевтың мүсіні үстел басында отыр.\n\nКабинетте республиканың экономикасы мен құрылысына қатысты мәселелер талқыланды, бірақ шешімдердің көпшілігі кеңестік орталықтандырылған басқару жүйесі аясында қабылданды.'}});
+  frame(F, P(R4,'N',10), 'portrait2', 0.72, {y:2.55, label:'Д.А. Қонаев', info:{kicker:'Портрет', title:'Д.А. Қонаевтың портреті', text:'Суретшінің майлы бояумен салған портреті. Кеудесінде — үш Социалистік Еңбек Ері жұлдызы.', img:'portrait2', credit:'Фото: RFE/RL'}});
+  frame(F, P(R4,'N',6.7), 'p05', 1.45);
+  frame(F, P(R4,'E',-12), 'p01', 1.85);
+  frame(F, P(R4,'E',-8.6), 'p02', 1.6);
+  frame(F, P(R4,'E',-5.6), 'p13', 1.9);
+  panel(F, P(R4,'W',-12.6), {kicker:'1955–1960 · 1962–1964', title:'Министрлер Кеңесінің төрағасы', body:'Екі рет Қазақ КСР Министрлер Кеңесінің төрағасы болды.'});
+  panel(F, P(R4,'W',-7.6), {kicker:'1960–1962 · 1964–1986', title:'Бірінші хатшы', body:'Қазақстан Компартиясы Орталық Комитетінің Бірінші хатшысы. Республиканы жалпы алғанда ширек ғасырға жуық басқарды.'});
+  panel(F, P(R4,'W',-5.6), {kicker:'1971–1987', title:'Саяси бюро мүшесі', body:'1966 жылдан КОКП ОК Саяси бюросы мүшелігіне кандидат, 1971–1987 жылдары толық мүшесі болды.'});
+  panel(F, P(R4,'S',6.8), {kicker:'1986, 16 желтоқсан', title:'Қызметтен босатылуы', body:'Қонаевтың орнына Г. Колбин тағайындалды. Бұл шешім Алматыдағы Желтоқсан оқиғасына түрткі болды. Оқиғаны зерттегенде бірнеше дереккөзді салыстырып, асығыс қорытынды жасамау керек.'});
+  panel(F, P(R4,'S',13.2), {kicker:'Тарихи контекст', title:'Кеңестік басқару жүйесі', body:'Республика басшысы кең өкілеттікке ие болғанымен, негізгі шешімдер Мәскеудегі орталықта қабылданды. Тұлғаның қызметін осы жүйенің шеңберінде бағалау керек.'});
+  standPanel(F, 12.4, -3.3, -PI/2, {kicker:'Ғылыми баға', title:'Жетістіктер мен қайшылықтар', body:'Жетістіктер: өнеркәсіп пен ғылымның дамуы, қалалардың өсуі, білім мен мәдениет.\nҚайшылықтар: экологиялық мәселелер, шикізатқа тәуелділік, орталықтың ықпалы, қоғамдық-саяси шектеулер.'});
+  (() => { const g = new THREE.Group(); g.position.set(12.4,0,-6.6);
+    const b = box(0.9,1.0,0.9,M.marble); b.position.y = 0.5; g.add(b);
+    const t = box(1.0,0.05,1.0,M.gold); t.position.y = 1.02; g.add(t);
+    const shape = new THREE.Shape(); for(let i=0;i<10;i++){ const r = i%2 ? 0.07 : 0.17, a = i/10*PI*2 + PI/2; i ? shape.lineTo(Math.cos(a)*r, Math.sin(a)*r) : shape.moveTo(Math.cos(a)*r, Math.sin(a)*r); }
+    const sg = new THREE.ExtrudeGeometry(shape, {depth:0.03, bevelEnabled:false});
+    const stars = new THREE.Group(); stars.position.y = 1.5;
+    for(let i=0;i<3;i++){ const s = new THREE.Mesh(sg, M.brass); s.position.x = (i-1)*0.42; stars.add(s); }
+    g.add(stars); FL[1].anim.push(dt => { stars.rotation.y += dt*0.6; });
+    add(F, g); solid(F, 12.4, -6.6, 1.1, 1.1);
+    clickable(F, g, {type:'info', info:{kicker:'Марапаттар', title:'Үш «Алтын жұлдыз»', text:'Социалистік Еңбек Ері атағы Қонаевқа үш рет берілді: 1972, 1976 және 1982 жылдары. Ол сондай-ақ 8 Ленин орденімен марапатталған, Лениндік сыйлықтың лауреаты. Жұлдыздар — 3D макет.', img:'p13', credit:'Фото: RFE/RL'}});
+  })();
+  sign(F, 5.12, -10, PI/2, 3, 'Қазақстанның дамуы');
+  sign(F, 10, -1.12, PI, 5, 'Мұра және жады');
+
+  /* 5 — Legacy and memory */
+  const R5 = RM(5);
+  hallIntro(F, P(R5,'N',7.2), 5);
+  frame(F, P(R5,'N',12.8), 'p09', 1.8);
+  panel(F, P(R5,'E',1.5), {kicker:'1992 · 1994', title:'Естелік кітаптары', body:'Қонаев өз дәуірі туралы естеліктер қалдырды. Кітаптарды басып, 3D түрде парақтаңыз.'}, {click:{type:'book', id:'b0'}});
+  frame(F, P(R5,'E',4.3), 'p10', 2.0);
+  frame(F, P(R5,'E',7.5), 'p14', 2.2);
+  panel(F, P(R5,'E',10.6), {kicker:'2002', title:'Алматыдағы музей-үй', body:'Төлебаев көшесі, 117. Қонаев тұрған үйде оның кабинеті, қонақ бөлмесі, кітапханасы мен жеке заттары сақталған.'});
+  qrStand(F, P(R5,'S',7));
+  frame(F, P(R5,'S',10), 'p04', 1.55);
+  panel(F, P(R5,'S',13), {kicker:'Қоғамдық жады', title:'Есім сақталады', body:'2022 жылы Қапшағай қаласына Қонаев есімі берілді. Алматыда оның атындағы көше мен ескерткіш бар, музей-үй жұмыс істейді.'});
+  panel(F, P(R5,'W',10.8), {kicker:'Д.А. Қонаев', title:'«Менің өмірбаяным…»', body:QUOTE});
+  BOOKS.forEach((b, i) => {
+    const z = 1.6 + i*2.2;
+    const g = new THREE.Group(); g.position.set(11.2, 0, z);
+    const pd = box(0.6,0.95,0.6,M.marble); pd.position.y = 0.475; g.add(pd);
+    const pt2 = box(0.66,0.04,0.66,M.gold); pt2.position.y = 0.97; g.add(pt2);
+    const cov = new THREE.MeshLambertMaterial({map:ctex(coverCanvas(b))});
+    const side = new THREE.MeshLambertMaterial({color:0xefe6d0});
+    const spine = new THREE.MeshLambertMaterial({color:new THREE.Color(b.color)});
+    const bk = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.5,0.36), [cov, spine, side, side, side, side]);
+    bk.position.y = 1.45; g.add(bk);
+    FL[1].anim.push((dt, t) => { bk.rotation.y = t*0.5 + i; bk.position.y = 1.45 + Math.sin(t*1.4+i)*0.04; });
+    add(F, g); solid(F, 11.2, z, 0.8, 0.8);
+    clickable(F, g, {type:'book', id:b.id});
+  });
+  kiosk(F, 5.8, 2.0, PI/2, 'Аудиогид', 'Қазақша · Русский · English', '♪', {type:'audio', id:5});
+  kiosk(F, 5.8, 8.2, PI/2, 'Қорытынды викторина', '5 залдың сұрақтары', '?', {type:'quiz', id:'all'});
+  sign(F, 10, -0.88, 0, 4, 'Тарих және қоғам');
+}
+
+/* ---------------- Build floor 2 ---------------- */
+function buildFloor2(){
+  const F = FL[2];
+  floorPlane(F, -15, 15, -14, 12, M.parquet(30,26));
+  floorPlane(F, -5, 5, -4, 12, new THREE.MeshLambertMaterial({map:ctex(stoneCanvas(), 10/4, 16/4)}), 0.004);
+  ceiling(F);
+  wall(F,-15,-14,15,-14); wall(F,-15,12,15,12); wall(F,-15,-14,-15,12); wall(F,15,-14,15,12);
+  wall(F,-5,-14,-5,12,[{c:-9},{c:0}]);
+  wall(F,-5,-4,5,-4,[{c:0}]);
+  wall(F,5,-14,5,12,[{c:-9},{c:-2},{c:6}]);
+  wall(F,5,0,15,0,[{c:10}]);
+  ROOMS.filter(r => r.f === 2).forEach(r => roomLight(F, r));
+
+  const H = RM(20);
+  stairs(F, false);
+  sign(F, -4.88, 0, PI/2, 6, 'Конференц-зал');
+  sign(F, 0, -3.88, 0, 8, 'VR-аймақ');
+  sign(F, 4.88, -2, -PI/2, 7, 'Цифрлық кітапхана');
+  sign(F, 4.88, 6, -PI/2, 9, 'Шығармашылық аймақ');
+  plant(F,-4.3,-3.3); plant(F,4.3,-3.3); plant(F,-4.3,11.3);
+  panel(F, P(H,'W',6.5), {kicker:'Өмір жолы', title:'1912 — 1993', body:'Қонаевтың өмір жолын жылдар бойынша қарау үшін осы стендті басыңыз. Сенсорлық экранда карта да бар.'}, {click:{type:'kiosk', tab:'tl'}});
+  panel(F, P(H,'S',-2.6), {kicker:'2-қабат', title:'Қосымша аймақтар', body:'Конференц-зал (6), цифрлық кітапхана (7), VR-аймақ (8) және оқушылардың шығармашылық аймағы (9). Бес негізгі зал — 1-қабатта.'});
+  (() => { const g = new THREE.Group(); g.position.set(0,0,4); const s = box(2.2,0.45,0.6,M.leather); s.position.y = 0.3; g.add(s); add(F,g); solid(F,0,4,2.3,0.7); })();
+
+  /* 9 — Conference */
+  const R9 = RM(6);
+  screen(F, P(R9,'W',-1), 4.2, 2.15);
+  (() => { const g = new THREE.Group(); g.position.set(-13.3,0,-4.2); const b = box(0.6,1.1,0.45,M.wood); b.position.y = 0.55; g.add(b); const t = box(0.66,0.05,0.5,M.gold); t.position.set(0,1.12,0); t.rotation.z = 0.1; g.add(t); add(F,g); solid(F,-13.3,-4.2,0.7,0.6); })();
+  for(const x of [-11.4,-10.2,-9.0,-7.8]) for(const z of [-6.4,-5.4,-4.4,-3.4,1.4,2.4,3.4,4.4]) chair(F, x, z, PI/2, M.green);
+  solid(F, -9.6, -4.9, 4.4, 4.0); solid(F, -9.6, 2.9, 4.4, 4.0);
+  panel(F, P(R9,'N',-10), {kicker:'Конференц-зал', title:'Дәрістер мен кездесулер', body:'Сабақтар, дәрістер, кітап таныстырылымдары мен оқушылар конференциясын өткізуге арналған зал. Экранды басып, слайд-шоуды ашыңыз.'});
+  panel(F, P(R9,'S',-10), {kicker:'Сабаққа идея', title:'Тарих сабағы осы залда', body:'Мұғалім экранда музей фотосуреттерін көрсетіп, оқушылар өмір жолы мен карта бойынша тапсырма орындай алады.'});
+
+  /* 11 — VR */
+  const R11 = RM(8);
+  [['home',-3,-11.2,0.5],['office',0,-12.2,0],['museum',3,-11.2,-0.5]].forEach(([k,x,z,ry]) => {
+    const g = new THREE.Group(); g.position.set(x,0,z); g.rotation.y = ry;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.6,0.035,8,48), M.glow); ring.rotation.x = PI/2; ring.position.y = 0.03; g.add(ring);
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.58,40), new THREE.MeshBasicMaterial({color:0x123d36})); disc.rotation.x = -PI/2; disc.position.y = 0.02; g.add(disc);
+    const set = PANOS[k].set; const im = images[set[0]]; const asp = im ? im.width/im.height : 1.4;
+    const arc = new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.1,1.6/asp*1.2,24,1,true,-0.7,1.4), new THREE.MeshBasicMaterial({map:itex(set[0]), side:THREE.DoubleSide}));
+    arc.position.set(0,1.55,0.9); arc.rotation.y = PI; arc.geometry.scale(-1,1,1); g.add(arc);
+    const lab = new THREE.Mesh(new THREE.PlaneGeometry(1.4,0.31), new THREE.MeshBasicMaterial({map:ctex(signCanvas('◎', PANOS[k].t))})); lab.position.set(0,2.55,-0.2); g.add(lab);
+    FL[2].anim.push((dt,t) => { ring.scale.setScalar(1 + Math.sin(t*2 + x)*0.05); });
+    add(F, g); solid(F, x, z, 1.2, 1.2);
+    clickable(F, g, {type:'pano', key:k});
+  });
+  panel(F, P(R11,'S',-3), {kicker:'VR-аймақ', title:'Панорамалық саяхат', body:'Үш шеңбердің бірін басыңыз: Қонаевтың үйі, жұмыс кабинеті немесе музей экспозициясы. Айналаңызды сүйреп қараңыз.'});
+  kiosk(F, 3.2, -4.75, PI, 'VR-көзілдірік', 'Қалай кіруге болады', '◎', {type:'vrinfo'});
+
+  /* 10 — Digital library */
+  const R10 = RM(7);
+  shelf(F, 7, -13.6, 0); shelf(F, 10, -13.6, 0); shelf(F, 13, -13.6, 0);
+  shelf(F, 14.6, -10, -PI/2); shelf(F, 14.6, -6.6, -PI/2); shelf(F, 14.6, -3.2, -PI/2, 2.2);
+  table(F, 10.5, -5.6, 2.0, 1.0, M.green);
+  chair(F, 10.0, -6.4, PI); chair(F, 11.0, -6.4, PI); chair(F, 10.0, -4.8, 0); chair(F, 11.0, -4.8, 0);
+  kiosk(F, 9.5, -9.4, 0, 'Цифрлық кітапхана', 'Қонаевтың еңбектері', '❒', {type:'book', id:'b0'});
+  kiosk(F, 12.6, -9.4, 0, 'Дереккөздер', 'QR · әдебиеттер', '⌗', {type:'sources'});
+  panel(F, P(R10,'S',13), {kicker:'Цифрлық кітапхана', title:'Еңбектер бір жерде', body:'Естелік кітаптары мен музей альбомын 3D түрде парақтаңыз. Сканерленген беттер берілсе, кітаптар толық нұсқамен толықтырылады.'}, {click:{type:'book', id:'b3'}});
+
+  /* 12 — Creative */
+  const R12 = RM(9);
+  (() => { const g = new THREE.Group(); place(g, P(R12,'E',6), 1.85);
+    g.add(box(4.3,2.3,0.06,M.dark));
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(4.2,2.2), new THREE.MeshBasicMaterial({map:ctex(boardCanvas())})); b.position.z = 0.035; g.add(b);
+    add(F, g); clickable(F, g, {type:'projects'});
+  })();
+  for(const [x,z] of [[9,4],[9,9.2]]){
+    const g = new THREE.Group(); g.position.set(x,0,z);
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,0.05,24), M.wood); t.position.y = 0.74; g.add(t);
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.25,0.72,12), M.dark); l.position.y = 0.36; g.add(l);
+    add(F, g); solid(F, x, z, 1.5, 1.5);
+    for(let i=0;i<4;i++){ const a = i*PI/2 + PI/4; chair(F, x+Math.cos(a)*1.0, z+Math.sin(a)*1.0, PI/2 - a, M.cloth); }
+  }
+  panel(F, P(R12,'N',7), {kicker:'Шығармашылық аймақ', title:'Оқушылар жобалары', body:'Тақтаны басып, өз жобаңызды немесе музей туралы пікіріңізді жариялаңыз. Барлық келушілер көре алады.'}, {click:{type:'projects'}});
+  panel(F, P(R12,'S',11), {kicker:'Жоба идеялары', title:'Не туралы жазуға болады?', body:'Қонаев дәуіріндегі Алматы ғимараттары туралы фотоэссе. Ата-әжеңізден сол жылдар туралы естелік жазып алу. Өз ауылыңыздың 1960–1980 жылдардағы тарихы.'});
+  panel(F, P(R12,'S',7.4), {kicker:'Қонақтар кітабы', title:'Пікір қалдырыңыз', body:'Нағыз музейдегідей, мұнда да қонақтар кітабы бар. Пікіріңізді «Пікір» түрімен жариялаңыз.'}, {click:{type:'projects'}});
+}
+
+/* ---------------- Movement / interaction ---------------- */
+function blocked(x, z, r=0.28){ for(const b of F.boxes){ if(x > b.x0-r && x < b.x1+r && z > b.z0-r && z < b.z1+r) return true; } return false; }
+function tryMove(dx, dz){ const p = rig.position; let moved = false; if(!blocked(p.x+dx, p.z)){ p.x += dx; moved = true; } if(!blocked(p.x, p.z+dz)){ p.z += dz; moved = true; } return moved; }
+const keys = {}; const pad = {};
+let walkTarget = null, stuck = 0;
+function update(dt){
+  let f = 0, s = 0, turn = 0;
+  if(keys.w || keys.arrowup || pad.f) f += 1;
+  if(keys.s || keys.arrowdown || pad.b) f -= 1;
+  if(keys.a) s -= 1; if(keys.d) s += 1;
+  if(keys.arrowleft || keys.q || pad.l) turn += 1;
+  if(keys.arrowright || keys.e || pad.r) turn -= 1;
+  yaw += turn*dt*1.7;
+  if(f || s){
+    walkTarget = null; const sp = 2.7*dt*(keys.shift ? 1.8 : 1); const sn = Math.sin(yaw), cs = Math.cos(yaw);
+    let dx = -sn*f + cs*s, dz = -cs*f - sn*s; const L = Math.hypot(dx,dz) || 1; tryMove(dx/L*sp, dz/L*sp);
+  } else if(walkTarget){
+    const p = rig.position, dx = walkTarget.x - p.x, dz = walkTarget.z - p.z, d = Math.hypot(dx,dz);
+    if(d < 0.08){ walkTarget = null; }
+    else { const sp = Math.min(d, 3.2*dt); const before = p.x + p.z; tryMove(dx/d*sp, dz/d*sp); if(Math.abs(p.x + p.z - before) < 1e-4){ stuck += dt; if(stuck > 0.25){ walkTarget = null; stuck = 0; } } else stuck = 0; }
+  }
+  rig.rotation.y = yaw;
+  if(!renderer.xr.isPresenting) camera.rotation.x = pitch;
+}
+
+let curRoom = null;
+function detectRoom(){
+  const p = rig.position;
+  const r = ROOMS.find(r => r.f === floor && p.x >= r.x0 && p.x <= r.x1 && p.z >= r.z0 && p.z <= r.z1);
+  if(r && r !== curRoom){ curRoom = r; $('#rNum').textContent = r.b; $('#rName').textContent = r.name; $('#rSub').textContent = r.sub || (r.f === 2 ? '2-қабат' : '1-қабат'); $('#rSub').hidden = false; }
+}
+
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+function pick(cx, cy){
+  const rect = canvas.getBoundingClientRect();
+  ndc.set(((cx-rect.left)/rect.width)*2-1, -((cy-rect.top)/rect.height)*2+1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects([...F.clickables, ...F.floors, ...F.walls], true);
+  for(const h of hits){
+    let o = h.object; while(o && !o.userData.click) o = o.parent;
+    if(o) return {click:o.userData.click, obj:o, point:h.point, dist:h.distance};
+    if(h.object.userData.floor) return {floor:true, point:h.point, dist:h.distance};
+    return null;
+  }
+  return null;
+}
+function handleClick(c){
+  switch(c.type){
+    case 'info': return openInfo(c.info);
+    case 'book': return openBook(c.id);
+    case 'kiosk': return openKiosk(c.tab);
+    case 'ai': return openAI();
+    case 'gallery': return openGallery(SLIDES.indexOf(SLIDES[slideI % SLIDES.length]));
+    case 'pano': return openPano(c.key);
+    case 'projects': return openProjects();
+    case 'floor': return goFloor(c.to);
+    case 'vrinfo': return openVRInfo();
+    case 'exit': return showIntro();
+    case 'hall': return openHall(c.id);
+    case 'audio': return openAudio(c.id);
+    case 'quiz': return openQuiz(c.id);
+    case 'sources': return openSources();
+    case 'project': return openProject();
+    case 'plan': return openPlan();
+  }
+}
+function clickAt(x, y){
+  const h = pick(x, y); if(!h) return;
+  if(h.click){ if(h.dist > 9 && h.click.type !== 'floor'){ walkTo(h.point, 2.2); return; } handleClick(h.click); }
+  else if(h.floor){ walkTarget = {x:h.point.x, z:h.point.z}; stuck = 0; }
+}
+function walkTo(pt, keep){ const p = rig.position; const dx = pt.x - p.x, dz = pt.z - p.z, d = Math.hypot(dx,dz); if(d > keep) walkTarget = {x:p.x + dx/d*(d-keep), z:p.z + dz/d*(d-keep)}; }
+
+function goFloor(to, roomId){
+  const fd = $('#fade'); fd.style.opacity = 1;
+  setTimeout(() => {
+    floor = to; F = FL[to]; FL[1].group.visible = to === 1; FL[2].group.visible = to === 2;
+    const r = roomId != null ? RM(roomId) : (to === 2 ? RM(20) : RM(0));
+    if(roomId == null && to === 1){ rig.position.set(2.2, 0, 8.2); yaw = PI*0.75; } else { rig.position.set(r.sp[0], 0, r.sp[1]); yaw = r.sp[2]; }
+    pitch = 0; walkTarget = null; curRoom = null; detectRoom();
+    fd.style.opacity = 0;
+  }, 330);
+}
+function teleport(id){ const r = RM(id); if(r.f !== floor) return goFloor(r.f, id); const fd = $('#fade'); fd.style.opacity = .85; setTimeout(() => { rig.position.set(r.sp[0],0,r.sp[1]); yaw = r.sp[2]; pitch = 0; walkTarget = null; detectRoom(); fd.style.opacity = 0; }, 250); }
+
+/* pointer */
+let drag = null;
+const openSheets = () => document.querySelector('.sheet:not([hidden])') || !$('#pano').hidden || !$('#intro').hidden;
+canvas.addEventListener('pointerdown', e => { if(openSheets()) return; canvas.focus({preventScroll:true}); drag = {x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, moved:false, id:e.pointerId}; try{ canvas.setPointerCapture(e.pointerId); }catch(_){} });
+canvas.addEventListener('pointermove', e => {
+  if(drag && e.pointerId === drag.id){
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if(Math.hypot(e.clientX-drag.sx, e.clientY-drag.sy) > 7) drag.moved = true;
+    if(drag.moved){ const k = touch ? 0.006 : 0.0045; yaw += dx*k; pitch = Math.max(-1.2, Math.min(1.2, pitch + dy*k)); }
+    tip.hidden = true;
+  } else if(!touch) hover(e);
+});
+canvas.addEventListener('pointerup', e => { if(drag && e.pointerId === drag.id && !drag.moved) clickAt(e.clientX, e.clientY); drag = null; });
+canvas.addEventListener('pointercancel', () => { drag = null; });
+canvas.addEventListener('pointerleave', () => { tip.hidden = true; });
+const tip = $('#tip'); let hoverT = 0;
+function hover(e){
+  const now = performance.now(); if(now - hoverT < 60) return; hoverT = now;
+  const h = pick(e.clientX, e.clientY);
+  if(h && h.click){ canvas.style.cursor = 'pointer'; const c = h.click; const label = c.type === 'info' ? c.info.title : ({book:'3D кітапты ашу', kiosk:'Сенсорлық экран', ai:'AI көмекші', gallery:'Слайд-шоу', pano:'Панорамалық көрініс', projects:'Оқушылар жобалары', floor: c.to === 2 ? '2-қабатқа көтерілу' : '1-қабатқа түсу', vrinfo:'VR-экскурсия', exit:'Музейден шығу', hall:'Зал туралы · аудиогид', audio:'Аудиогид', quiz:'Викторина', sources:'QR-кодтар мен дереккөздер', project:'Ғылыми жоба туралы', plan:'Музей жоспары'})[c.type]; tip.textContent = label; tip.style.left = e.clientX + 'px'; tip.style.top = e.clientY + 'px'; tip.hidden = false; }
+  else { canvas.style.cursor = h && h.floor ? 'crosshair' : 'grab'; tip.hidden = true; }
+}
+addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ closeAll(); return; }
+  if(openSheets() || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  keys[e.key.toLowerCase()] = true; if(/^arrow/i.test(e.key)) e.preventDefault();
+});
+addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+addEventListener('blur', () => { for(const k in keys) keys[k] = false; });
+document.querySelectorAll('#pad button').forEach(b => {
+  const k = b.dataset.k;
+  b.addEventListener('pointerdown', e => { e.preventDefault(); pad[k] = true; walkTarget = null; });
+  for(const ev of ['pointerup','pointerleave','pointercancel']) b.addEventListener(ev, () => { pad[k] = false; });
+});
+
+/* ---------------- Sheets ---------------- */
+function openSheet(id){ document.querySelectorAll('.sheet').forEach(s => { if(s.id !== id) s.hidden = true; }); $('#'+id).hidden = false; tip.hidden = true; for(const k in pad) pad[k] = false; for(const k in keys) keys[k] = false; }
+function closeAll(){ stopAudio(); document.querySelectorAll('.sheet').forEach(s => s.hidden = true); if(!$('#pano').hidden) closePano(); if(aiCtl) aiCtl.abort(); }
+document.querySelectorAll('.sheet').forEach(s => {
+  s.addEventListener('pointerdown', e => { if(e.target === s) s.hidden = true; });
+  s.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => { s.hidden = true; if(s.id === 'sAI' && aiCtl) aiCtl.abort(); if(s.id === 'sAudio') stopAudio(); }));
+});
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function openInfo(info){
+  $('#iKick').textContent = info.kicker || ''; $('#iTitle').textContent = info.title || '';
+  $('#iText').innerHTML = String(info.text || '').split('\n\n').map(p => '<p>' + esc(p) + '</p>').join('');
+  if(info.img){ $('#iImg').src = src(info.img); $('#iImg').alt = info.title || ''; $('#iImgWrap').hidden = false; $('#iGrid').classList.remove('noimg'); $('#iCredit').textContent = info.credit || ''; }
+  else { $('#iImgWrap').hidden = true; $('#iGrid').classList.add('noimg'); }
+  const acts = $('#iActs'); acts.innerHTML = '';
+  (info.actions || []).forEach(([l, fn]) => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = l; b.onclick = fn; acts.append(b); });
+  const ask = document.createElement('button'); ask.className = 'btn ghost'; ask.textContent = '✦ AI-дан сұрау'; ask.onclick = () => { openAI(); if(info.title) send(info.title + ' туралы толығырақ айтып берші.'); }; acts.append(ask);
+  openSheet('sInfo');
+}
+function openVRInfo(){
+  openInfo({kicker:'VR-экскурсия', title:'VR-көзілдірікпен қарау', text:'Бұл музей WebXR технологиясымен жұмыс істейді. VR-көзілдірік браузерінде (мысалы, Meta Quest Browser) осы бетті ашсаңыз, жоғарғы панельде «VR» батырмасы шығады. Ішінде контроллермен еденді нұсқап, триггерді басу арқылы жүресіз.\n\nVR-көзілдірік болмаса, панорамалық көріністерді экранда-ақ қарай аласыз.', actions:[['Қонаевтың үйі', () => openPano('home')], ['Жұмыс кабинеті', () => openPano('office')], ['Музей экспозициясы', () => openPano('museum')]]});
+}
+
+/* Gallery */
+let gI = 0;
+function openGallery(i=0){ gI = (i + SLIDES.length) % SLIDES.length; renderGal(); openSheet('sGal'); }
+function renderGal(){
+  const n = SLIDES[gI]; $('#gImg').src = src(n); $('#gImg').alt = PH[n].t; $('#gTitle').textContent = PH[n].t; $('#gText').textContent = PH[n].d; $('#gCredit').textContent = PH[n].c || ''; $('#gKick').textContent = `Бейнежоба · ${gI+1} / ${SLIDES.length}`;
+  const th = $('#thumbs'); if(!th.childElementCount){ SLIDES.forEach((s,k) => { const im = document.createElement('img'); im.src = src(s); im.alt = PH[s].t; im.onclick = () => { gI = k; renderGal(); }; th.append(im); }); }
+  [...th.children].forEach((im,k) => im.classList.toggle('on', k === gI));
+  th.children[gI]?.scrollIntoView({block:'nearest', inline:'center'});
+}
+$('#gPrev').onclick = () => { gI = (gI - 1 + SLIDES.length) % SLIDES.length; renderGal(); };
+$('#gNext').onclick = () => { gI = (gI + 1) % SLIDES.length; renderGal(); };
+
+/* Kiosk: timeline + map */
+function openKiosk(tab='tl'){
+  const tl = $('#tl'); if(!tl.childElementCount) tl.innerHTML = TIMELINE.map(([y,t,s]) => `<li><div class="y">${esc(y)}</div><div class="dot"></div><div class="t"><b>${esc(t)}</b>${s ? `<small>${esc(s)}</small>` : ''}</div></li>`).join('');
+  buildMap(); setTab(tab); openSheet('sKiosk');
+}
+function setTab(tab){ document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === tab)); $('#tabTl').hidden = tab !== 'tl'; $('#tabMap').hidden = tab !== 'map'; }
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => setTab(b.dataset.tab));
+function proj(lon, lat){ return [14 + (lon-46)*20*0.669, 14 + (55.6-lat)*20]; }
+function buildMap(){
+  const svg = $('#kzMap'); if(svg.childElementCount) return;
+  const pts = KZ.map(([a,b]) => proj(a,b).map(v => v.toFixed(1)).join(',')).join(' ');
+  let h = `<polygon points="${pts}" fill="#1d4a3c" stroke="#c9a45c" stroke-width="1.5" stroke-linejoin="round"/>`;
+  const [cx1,cy1] = proj(46.6,44.0); h += `<text x="${cx1}" y="${cy1}" fill="#6f8f84" font-size="11" font-family="PT Sans, sans-serif">Каспий теңізі</text>`;
+  PLACES.forEach((p,i) => { const [x,y] = proj(p.lon,p.lat); h += `<g class="pl" data-i="${i}" tabindex="0" role="button" aria-label="${esc(p.n)}"><circle cx="${x}" cy="${y}" r="11" fill="transparent"/><circle cx="${x}" cy="${y}" r="5.5" fill="#e6cd94" stroke="#0d1310" stroke-width="1.5"/><text x="${x+p.dx}" y="${y+p.dy}" fill="#efe6d2" font-size="13" font-weight="700" font-family="PT Serif, serif">${esc(p.n)}</text></g>`; });
+  svg.innerHTML = h;
+  svg.querySelectorAll('.pl').forEach(g => { const show = () => { const p = PLACES[+g.dataset.i]; $('#placeInfo').innerHTML = `<b>${esc(p.n)}</b><br>${esc(p.d)}`; svg.querySelectorAll('.pl circle:nth-child(2)').forEach(c => c.setAttribute('fill','#e6cd94')); g.children[1].setAttribute('fill','#ff9f6a'); }; g.onclick = show; g.onkeydown = e => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); show(); } }; });
+}
+
+/* Plan */
+let planFloor = 1;
+function openPlan(){ planFloor = floor; drawPlan(); openSheet('sPlan'); }
+function drawPlan(){
+  document.querySelectorAll('[data-floor]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.floor === planFloor));
+  const tx = x => (x+15)*10, tz = z => (z+14)*10;
+  let h = `<rect x="0" y="0" width="300" height="260" fill="#101814" stroke="#c9a45c" stroke-width="2"/>`;
+  ROOMS.filter(r => r.f === planFloor).forEach(r => {
+    const x = tx(r.x0), y = tz(r.z0), w = (r.x1-r.x0)*10, hh = (r.z1-r.z0)*10, cx = x+w/2, cy = y+hh/2;
+    const here = curRoom === r;
+    h += `<g class="rm" data-id="${r.id}" tabindex="0" role="button" aria-label="${esc(r.name)}"><rect x="${x+2}" y="${y+2}" width="${w-4}" height="${hh-4}" fill="${here ? '#2b5a4a' : '#1a2b24'}" stroke="#3a5248"/><circle cx="${cx}" cy="${cy-6}" r="13" fill="#0d1310" stroke="#c9a45c" stroke-width="1.5"/><text x="${cx}" y="${cy-1.5}" text-anchor="middle" fill="#e6cd94" font-size="13" font-weight="700" font-family="PT Serif, serif">${r.b}</text></g>`;
+  });
+  if(planFloor === floor){ const p = rig.position; h += `<circle cx="${tx(p.x)}" cy="${tz(p.z)+16}" r="5" fill="#ff9f6a" stroke="#fff" stroke-width="1.5"/>`; }
+  h += `<text x="150" y="256" text-anchor="middle" fill="#9fb2a8" font-size="9" font-family="PT Sans, sans-serif">${planFloor === 1 ? '▲ Кіреберіс' : ''}</text>`;
+  const svg = $('#planSvg'); svg.innerHTML = h;
+  svg.querySelectorAll('.rm').forEach(g => { const go = () => { $('#sPlan').hidden = true; if(!$('#intro').hidden) enterMuseum(+g.dataset.id); else teleport(+g.dataset.id); }; g.onclick = go; g.onkeydown = e => { if(e.key === 'Enter') go(); }; });
+  $('#legend').innerHTML = ROOMS.filter(r => r.f === planFloor).sort((a,b) => (a.id%20)-(b.id%20)).map(r => `<button data-id="${r.id}"><b>${r.b}</b><span>${esc(r.name)}${r.sub ? ` <span class="muted small">(${esc(r.sub)})</span>` : ''}</span></button>`).join('');
+  $('#legend').querySelectorAll('button').forEach(b => b.onclick = () => { $('#sPlan').hidden = true; if(!$('#intro').hidden) enterMuseum(+b.dataset.id); else teleport(+b.dataset.id); });
+}
+document.querySelectorAll('[data-floor]').forEach(b => b.onclick = () => { planFloor = +b.dataset.floor; drawPlan(); });
+
+/* ---------------- Book viewer ---------------- */
+let bk = null, bkPage = 0, bkZoom = 1, bkRY = 0, bkRX = 14;
+function pageHTML(p, n){
+  if(p.img) return `<img src="${src(p.img)}" alt="${esc(p.cap || '')}"><div class="cap">${esc(p.cap || '')}</div><div class="pn">${n}</div>`;
+  if(p.title) return `<div class="face-in title"><h3>${esc(p.h)}</h3><p>${p.p}</p></div><div class="pn">${n}</div>`;
+  return `<h3>${esc(p.h)}</h3>${p.p ? `<p>${esc(p.p)}</p>` : ''}${p.list ? `<ul>${p.list.map(l => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}<div class="pn">${n}</div>`;
+}
+function openBook(id){
+  bk = BOOKS.find(b => b.id === id) || BOOKS[0];
+  $('#bkShelf').innerHTML = BOOKS.map(b => `<button class="chip" data-b="${b.id}" aria-pressed="${b.id === bk.id}">${esc(b.title)}</button>`).join('');
+  $('#bkShelf').querySelectorAll('[data-b]').forEach(c => c.onclick = () => openBook(c.dataset.b));
+  $('#bkTitle').textContent = bk.title + ' — ' + bk.sub;
+  const faces = [{cover:true}, ...bk.pages]; if(faces.length % 2 === 0) faces.push({blank:true}); faces.push({backcover:true});
+  const book = $('#book'); book.innerHTML = '';
+  const nLeaves = faces.length / 2;
+  for(let i=0;i<nLeaves;i++){
+    const leaf = document.createElement('div'); leaf.className = 'leaf';
+    const fr = faces[2*i], ba = faces[2*i+1];
+    const mk = (f, cls, n) => { const d = document.createElement('div'); d.className = 'face ' + cls; if(f.cover){ d.classList.add('cover'); d.style.background = bk.color; d.innerHTML = `<div class="frame"></div><div class="au">${esc(bk.author)}</div><div class="ti">${esc(bk.title)}</div><div class="yr">${esc(bk.year)}</div>`; } else if(f.backcover){ d.classList.add('cover'); d.style.background = bk.color; d.innerHTML = `<div class="frame"></div><div></div><div class="yr">Д.А. Қонаев 3D музейі</div><div></div>`; } else if(f.blank){ d.innerHTML = ''; } else { if(f.title) d.classList.add('title'); d.innerHTML = pageHTML(f, n); } return d; };
+    leaf.append(mk(fr, 'front', 2*i), mk(ba, 'back', 2*i+1));
+    leaf.addEventListener('click', e => { if(bkDragMoved) return; e.stopPropagation(); if(leaf.classList.contains('turned')) flip(-1); else flip(1); });
+    book.append(leaf);
+  }
+  bkPage = 0; bkZoom = 1; bkRY = 0; bkRX = 14;
+  openSheet('sBook'); requestAnimationFrame(layoutBook);
+}
+function layoutBook(){
+  if(!bk) return; const st = $('#bkStage'); const W = st.clientWidth - 24, H = st.clientHeight - 30;
+  const pw = Math.max(120, Math.min(W/2, H/1.38)); const book = $('#book');
+  book.style.width = (pw*2) + 'px'; book.style.height = (pw*1.38) + 'px'; book.style.fontSize = (pw/20) + 'px';
+  applyBook();
+}
+function applyBook(){
+  const book = $('#book'); const leaves = [...book.children]; const n = leaves.length;
+  leaves.forEach((l,i) => { const t = i < bkPage; l.classList.toggle('turned', t); l.style.zIndex = t ? i+1 : n-i; });
+  const shift = bkPage === 0 ? -25 : bkPage === n ? 25 : 0;
+  book.style.transform = `translateX(${shift}%) rotateX(${bkRX}deg) rotateY(${bkRY}deg) scale(${bkZoom})`;
+  $('#bkPrev').disabled = bkPage === 0; $('#bkNext').disabled = bkPage === n;
+}
+function flip(d){ const n = $('#book').children.length; bkPage = Math.max(0, Math.min(n, bkPage + d)); applyBook(); }
+$('#bkPrev').onclick = () => flip(-1); $('#bkNext').onclick = () => flip(1);
+$('#bkZin').onclick = () => { bkZoom = Math.min(2.2, bkZoom + 0.2); applyBook(); };
+$('#bkZout').onclick = () => { bkZoom = Math.max(0.6, bkZoom - 0.2); applyBook(); };
+$('#bkRl').onclick = () => { bkRY = Math.max(-55, bkRY - 15); applyBook(); };
+$('#bkRr').onclick = () => { bkRY = Math.min(55, bkRY + 15); applyBook(); };
+$('#bkReset').onclick = () => { bkZoom = 1; bkRY = 0; bkRX = 14; applyBook(); };
+let bkDrag = null, bkDragMoved = false;
+$('#bkStage').addEventListener('pointerdown', e => { bkDrag = {x:e.clientX, y:e.clientY}; bkDragMoved = false; });
+addEventListener('pointermove', e => { if(!bkDrag) return; const dx = e.clientX - bkDrag.x, dy = e.clientY - bkDrag.y; if(Math.hypot(dx,dy) > 6) bkDragMoved = true; if(bkDragMoved){ bkRY = Math.max(-60, Math.min(60, bkRY + dx*0.3)); bkRX = Math.max(-10, Math.min(45, bkRX - dy*0.2)); bkDrag = {x:e.clientX, y:e.clientY}; const b = $('#book'); b.style.transition = 'none'; applyBook(); } });
+addEventListener('pointerup', () => { if(bkDrag){ $('#book').style.transition = ''; bkDrag = null; setTimeout(() => bkDragMoved = false, 0); } });
+$('#bkStage').addEventListener('wheel', e => { e.preventDefault(); bkZoom = Math.max(0.6, Math.min(2.2, bkZoom - e.deltaY*0.0015)); applyBook(); }, {passive:false});
+
+/* ---------------- Pano viewer ---------------- */
+let pano = null;
+function openPano(key){
+  closeAll();
+  const P = PANOS[key]; $('#pano').hidden = false; $('#panoTitle').textContent = P.t;
+  if(!pano){
+    const c = $('#panoC'); const r = new THREE.WebGLRenderer({canvas:c, antialias:true}); r.setPixelRatio(Math.min(devicePixelRatio||1, 1.75));
+    const s = new THREE.Scene(); s.background = new THREE.Color(0x050706);
+    const cam = new THREE.PerspectiveCamera(72, 1, 0.1, 50); cam.rotation.order = 'YXZ';
+    const fl = new THREE.Mesh(new THREE.CircleGeometry(6,48), new THREE.MeshBasicMaterial({color:0x1a1410})); fl.rotation.x = -PI/2; fl.position.y = -1.6; s.add(fl);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5,0.56,48), new THREE.MeshBasicMaterial({color:0x7fe0d0})); ring.rotation.x = -PI/2; ring.position.y = -1.59; s.add(ring);
+    pano = {r, s, cam, group:null, yaw:0, pitch:0, key:null, raf:0};
+    let d = null;
+    c.addEventListener('pointerdown', e => { d = {x:e.clientX, y:e.clientY}; try{ c.setPointerCapture(e.pointerId); }catch(_){} });
+    c.addEventListener('pointermove', e => { if(!d) return; pano.yaw += (e.clientX-d.x)*0.005; pano.pitch = Math.max(-0.7, Math.min(0.7, pano.pitch + (e.clientY-d.y)*0.004)); d = {x:e.clientX, y:e.clientY}; });
+    c.addEventListener('pointerup', () => d = null); c.addEventListener('pointercancel', () => d = null);
+  }
+  if(pano.group) pano.s.remove(pano.group);
+  const g = new THREE.Group(); const R = 5, theta = 1.5;
+  P.set.forEach((k, i) => {
+    const im = images[k]; const asp = im ? im.width/im.height : 1.4; const h = R*theta/asp;
+    const geo = new THREE.CylinderGeometry(R, R, h, 48, 1, true, 0, theta); geo.scale(-1, 1, 1);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({map:itex(k)}));
+    m.rotation.y = -i*PI/2 + theta/2 + PI; m.position.y = 0.15; g.add(m);
+    const trim = new THREE.Mesh(new THREE.CylinderGeometry(R-0.01, R-0.01, 0.05, 48, 1, true, 0, theta), new THREE.MeshBasicMaterial({color:0xc9a45c, side:THREE.DoubleSide}));
+    trim.rotation.y = m.rotation.y; trim.position.y = 0.15 - h/2 - 0.05; g.add(trim);
+  });
+  pano.s.add(g); pano.group = g; pano.key = key; pano.yaw = 0; pano.pitch = 0;
+  const loop = () => {
+    const c = $('#panoC'); const w = c.clientWidth, h = c.clientHeight; if(c.width !== Math.floor(w*pano.r.getPixelRatio())){ pano.r.setSize(w, h, false); pano.cam.aspect = w/h; pano.cam.updateProjectionMatrix(); }
+    pano.cam.rotation.y = pano.yaw; pano.cam.rotation.x = pano.pitch; pano.r.render(pano.s, pano.cam);
+    const idx = ((Math.round(-pano.yaw/(PI/2)) % 4) + 4) % 4; const k = PANOS[pano.key].set[idx]; $('#panoCap').textContent = PH[k].t;
+    pano.raf = requestAnimationFrame(loop);
+  };
+  cancelAnimationFrame(pano.raf); pano.raf = requestAnimationFrame(loop);
+}
+function closePano(){ $('#pano').hidden = true; if(pano) cancelAnimationFrame(pano.raf); }
+$('#panoClose').onclick = closePano;
+
+/* ---------------- AI ---------------- */
+let sample = null, sampleOff = false, aiCtl = null, aiBusy = false; const turns = [];
+function addMsg(who, text){ const d = document.createElement('div'); d.className = 'msg ' + (who === 'me' ? 'me' : 'bot'); const w = document.createElement('span'); w.className = 'who'; w.textContent = who === 'me' ? 'Сіз' : 'AI көмекші'; const t = document.createElement('span'); t.textContent = text; d.append(w, t); $('#chat').append(d); $('#chat').scrollTop = 1e9; return t; }
+function openAI(){
+  if(!$('#chat').childElementCount){
+    addMsg('bot', 'Сәлем! Мен — Қонаев музейінің AI көмекшісімін. Қандай сұрағыңыз бар?');
+    $('#aiChips').innerHTML = Object.keys(FAQ).map(q => `<button class="chip" type="button">${esc(q)}</button>`).join('');
+    $('#aiChips').querySelectorAll('.chip').forEach(c => c.onclick = () => send(c.textContent));
+  }
+  updateAINote(); openSheet('sAI'); setTimeout(() => { if(!touch) $('#askIn').focus(); }, 50);
+}
+function updateAINote(){ $('#aiNote').textContent = sample && !sampleOff ? 'Жауаптарды Claude береді (сіздің Claude аккаунтыңыз арқылы). Маңызды деректерді дереккөзден тексеріңіз.' : 'Еркін сұрақтарға жауап беру бұл қарау режимінде қолжетімсіз. Дайын сұрақтарды басыңыз — жауаптар музей мәліметтерінен алынады.'; }
+function localAnswer(q){ if(FAQ[q]) return FAQ[q]; const k = Object.keys(FAQ).find(key => q.toLowerCase().includes(key.toLowerCase().split(' ')[0].slice(0,5))); return k ? FAQ[k] : 'Бұл сұраққа офлайн режимде жауап бере алмаймын. Төмендегі дайын сұрақтарды таңдаңыз немесе залдардағы стендтерді оқыңыз.'; }
+async function send(q){
+  q = String(q || '').trim(); if(!q || aiBusy) return;
+  if($('#sAI').hidden) openAI();
+  addMsg('me', q); $('#askIn').value = '';
+  if(!sample || sampleOff){ addMsg('bot', localAnswer(q)); return; }
+  aiBusy = true; $('#askBtn').disabled = true; $('#stopBtn').hidden = false;
+  const out = addMsg('bot', 'Ойланып жатыр…');
+  turns.push({role:'user', content:q});
+  while(turns.length > 12) turns.shift();
+  if(turns[0].role !== 'user') turns.shift();
+  aiCtl = new AbortController();
+  try{
+    const {text} = await sample([{role:'user', content:RULES}, ...turns], {cache:false, signal:aiCtl.signal, onText:({text}) => { out.textContent = text; $('#chat').scrollTop = 1e9; }});
+    out.textContent = text; turns.push({role:'assistant', content:text});
+  }catch(e){
+    turns.pop();
+    if(e && (e.code === 'not_granted' || e.code === 'sampling_disabled' || e.code === 'not_declared' || e.code === 'capability_disabled' || e.code === 'capability_removed')){ sampleOff = true; updateAINote(); out.textContent = localAnswer(q); }
+    else if(e && e.code === 'cancelled'){ out.textContent = (e.text || '') + ' [тоқтатылды]'; }
+    else if(e && e.code === 'rate_limited'){ out.textContent = (e.text || '') + '\nСұрақтар тым көп болды. Біраздан соң қайта көріңіз.'; }
+    else if(e && e.code === 'refused'){ out.textContent = 'Бұл сұраққа жауап бере алмаймын. Басқаша сұрап көріңіз.'; }
+    else { out.textContent = (e && e.text ? e.text + '\n' : '') + 'Байланыс үзілді. Сұрақты қайта жіберіп көріңіз.'; }
+  }finally{ aiBusy = false; $('#askBtn').disabled = false; $('#stopBtn').hidden = true; aiCtl = null; }
+}
+$('#askForm').addEventListener('submit', e => { e.preventDefault(); send($('#askIn').value); });
+$('#stopBtn').onclick = () => aiCtl && aiCtl.abort();
+
+/* ---------------- Projects (shared db) ---------------- */
+let db = null, user = null, uid = null, posts = [], dbState = 'wait';
+function openProjects(){ renderPosts(); openSheet('sPj'); }
+function renderPosts(){
+  const L = $('#pjList');
+  if(dbState === 'off'){ L.innerHTML = `<div class="empty">Жобаларды сақтау осы қарау режимінде қолжетімсіз. Музейді claude.ai сілтемесі арқылы ашқанда жобалар барлық келушіге көрінеді.</div>`; $('#pjSend').disabled = true; return; }
+  $('#pjSend').disabled = false;
+  if(!posts.length){ L.innerHTML = `<div class="empty">${dbState === 'wait' ? 'Жүктеліп жатыр…' : 'Әзірге ешкім жарияламады. Сол жақтағы форманы толтырып, бірінші жобаны немесе пікірді қосыңыз.'}</div>`; return; }
+  L.innerHTML = posts.map(p => `<article class="post ${p.kind === 'review' ? 'review' : ''}">${p.uid && p.uid === uid ? `<button class="del" data-id="${esc(p.id)}">Өшіру</button>` : ''}<h4>${esc(p.title || '')}</h4><div class="meta">${p.kind === 'review' ? 'Пікір' : 'Жоба'} · ${esc(p.name || '')}${p.cls ? ' · ' + esc(p.cls) : ''}${p.ts ? ' · ' + new Date(p.ts).toLocaleDateString('kk-KZ') : ''}</div><p>${esc(p.text || '')}</p></article>`).join('');
+  L.querySelectorAll('.del').forEach(b => b.onclick = async () => { b.disabled = true; try{ await db.collection('posts').doc(b.dataset.id).delete(); }catch(e){ b.disabled = false; $('#pjStatus').textContent = 'Өшіру мүмкін болмады.'; } });
+}
+$('#pjForm').addEventListener('submit', async e => {
+  e.preventDefault(); if(!db) return;
+  const d = {name:$('#pjName').value.trim().slice(0,60), cls:$('#pjCls').value.trim().slice(0,60), kind:$('#pjKind').value === 'review' ? 'review' : 'project', title:$('#pjTitle').value.trim().slice(0,100), text:$('#pjText').value.trim().slice(0,1500), ts:Date.now(), uid:uid || ''};
+  if(!d.name || !d.title || !d.text) return;
+  $('#pjSend').disabled = true; $('#pjStatus').textContent = 'Жарияланып жатыр…';
+  try{ await db.collection('posts').add(d); $('#pjStatus').textContent = 'Жарияланды.'; $('#pjTitle').value = ''; $('#pjText').value = ''; }
+  catch(err){ $('#pjStatus').textContent = err && err.code === 'invalid_argument' ? 'Сізде жариялауға рұқсат жоқ (тек қарау режимі).' : err && err.code === 'quota_exceeded' ? 'Орын толды, жаңа жазба қосу мүмкін емес.' : 'Жариялау мүмкін болмады. Қайта көріңіз.'; }
+  finally{ $('#pjSend').disabled = false; }
+});
+
+async function initRuntime(){
+  if(!window.claude || !claude.use){ dbState = 'off'; return; }
+  claude.use('sample').then(s => { sample = s; updateAINote(); });
+  try{
+    user = await claude.use('user'); if(user) uid = await user.id();
+    db = await claude.use('db');
+    if(!db){ dbState = 'off'; renderPosts(); return; }
+    db.collection('posts').orderBy('ts','desc').limit(200).onSnapshot(s => { posts = s.docs.map(d => ({id:d.id, ...d.data()})); dbState = 'on'; if(!$('#sPj').hidden) renderPosts(); }, () => { dbState = 'off'; if(!$('#sPj').hidden) renderPosts(); });
+  }catch(_){ dbState = 'off'; }
+}
+
+/* ---------------- VR (WebXR) ---------------- */
+function initXR(){
+  if(!navigator.xr || !navigator.xr.isSessionSupported) return;
+  navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+    if(!ok) return; const b = $('#bVR'); b.hidden = false;
+    b.onclick = async () => {
+      if(renderer.xr.isPresenting){ renderer.xr.getSession().end(); return; }
+      try{ const s = await navigator.xr.requestSession('immersive-vr', {optionalFeatures:['local-floor']}); renderer.xr.setReferenceSpaceType('local-floor'); await renderer.xr.setSession(s); camera.position.y = 0; s.addEventListener('end', () => { camera.position.y = 1.6; }); }
+      catch(e){ openInfo({kicker:'VR', title:'VR режимі ашылмады', text:'Құрылғы немесе браузер VR сессиясын ашуға рұқсат бермеді. Бетті VR-көзілдірік браузерінде жеке қойындыда ашып көріңіз.'}); }
+    };
+  }).catch(() => {});
+  for(let i=0;i<2;i++){
+    const ctrl = renderer.xr.getController(i); rig.add(ctrl);
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-4)]), new THREE.LineBasicMaterial({color:0x7fe0d0})); ctrl.add(line);
+    ctrl.addEventListener('select', () => {
+      const m = new THREE.Matrix4().extractRotation(ctrl.matrixWorld);
+      ray.ray.origin.setFromMatrixPosition(ctrl.matrixWorld); ray.ray.direction.set(0,0,-1).applyMatrix4(m);
+      const hits = ray.intersectObjects([...F.clickables, ...F.floors, ...F.walls], true);
+      for(const h of hits){ let o = h.object; while(o && !o.userData.click) o = o.parent; if(o){ if(o.userData.click.type === 'floor') goFloor(o.userData.click.to); return; } if(h.object.userData.floor){ if(!blocked(h.point.x, h.point.z)) rig.position.set(h.point.x, 0, h.point.z); } return; }
+    });
+  }
+}
+
+/* ---------------- Intro & HUD ---------------- */
+function showIntro(){ closeAll(); $('#intro').hidden = false; $('#hud').hidden = true; $('#hint').hidden = true; $('#pad').hidden = true; }
+function enterMuseum(roomId){
+  $('#intro').hidden = true; $('#hud').hidden = false; $('#hint').hidden = false; $('#pad').hidden = !touch;
+  if(roomId != null) teleport(roomId);
+  hintTimer();
+}
+let hintT = 0; function hintTimer(){ const h = $('#hint'); h.style.opacity = 1; clearTimeout(hintT); hintT = setTimeout(() => h.style.opacity = 0, 9000); }
+if(touch) $('#hint').classList.add('top');
+$('#hint').textContent = touch ? 'Саусақпен сүйреп қараңыз · Еденді түртіп жүріңіз · Экспонатты түртіңіз' : 'Сүйреп айналаңызды қараңыз · Еденді басып немесе W A S D арқылы жүріңіз · Экспонатты басыңыз';
+$('#enter').onclick = () => enterMuseum();
+$('#introPlan').onclick = () => { planFloor = 1; drawPlan(); openSheet('sPlan'); };
+$('#bPlan').onclick = openPlan; $('#roomTag').onclick = openPlan; $('#roomTag').onkeydown = e => { if(e.key === 'Enter') openPlan(); };
+$('#bAI').onclick = openAI; $('#bBooks').onclick = () => openBook('b0'); $('#bTime').onclick = () => openKiosk('tl'); $('#bHelp').onclick = () => openSheet('sHelp');
+$('#bAudio').onclick = () => openAudio(curHallId());
+$('#bQuiz').onclick = () => { const h = curHallId(); openQuiz(h ? h : 'all'); };
+$('#auPlay').onclick = () => { if($('#auPlay').textContent.startsWith('■')) stopAudio(); else playAudio(); };
+$('#introProj').onclick = openProject;
+$('#projSrc').onclick = openSources;
+$('#projQuiz').onclick = () => openQuiz('all');
+try{ if('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => { if(!$('#sAudio').hidden) openAudio(audioHall); }; }catch(_){}
+
+/* ---------------- Loop ---------------- */
+function resize(){ const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix(); if(bk && !$('#sBook').hidden) layoutBook(); }
+addEventListener('resize', resize);
+const clock = new THREE.Clock(); let tAcc = 0;
+function tick(){
+  const dt = Math.min(clock.getDelta(), 0.05); tAcc += dt;
+  if($('#intro').hidden && $('#pano').hidden){ update(dt); detectRoom(); }
+  for(const fn of F.anim) fn(dt, tAcc);
+  if($('#pano').hidden || renderer.xr.isPresenting) renderer.render(scene, camera);
+}
+
+async function boot(){
+  try{ await Promise.race([Promise.all([document.fonts.load('700 30px "PT Serif"'), document.fonts.load('400 20px "PT Sans"'), document.fonts.load('700 20px "PT Sans"')]), new Promise(r => setTimeout(r, 2500))]); }catch(_){}
+  await Promise.all(IMGS.map(loadImg));
+  $('#introBg').style.backgroundImage = `url(${src('p14')})`; $('#introPortrait').src = src('cover');
+  initMaterials(); buildFloor1(); buildFloor2(); drawSlide(); setInterval(() => { slideI++; drawSlide(); }, 6000);
+  FL[2].group.visible = false; rig.position.set(0,0,10); yaw = 0; detectRoom();
+  resize(); renderer.setAnimationLoop(tick);
+  $('#loading').hidden = true; $('#intro').hidden = false;
+  initXR(); initRuntime();
+}
+boot();
+})();
+</script>
+
+</body>
+</html>
